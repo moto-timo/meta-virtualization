@@ -19,6 +19,8 @@ SRC_URI = "\
 	git://github.com/kubernetes-sigs/cri-o.git;branch=release-1.20;name=cri-o \
 	file://0001-Makefile-force-symlinks.patch \
         file://crio.conf \
+	file://99-kubernetes-cri.conf \
+	file://crio-modules.conf \
 	"
 
 # Apache-2.0 for docker
@@ -63,6 +65,7 @@ PACKAGES =+ "${PN}-config"
 
 RDEPENDS_${PN} += " virtual/containerd virtual/runc"
 RDEPENDS_${PN} += " e2fsprogs-mke2fs conmon util-linux iptables conntrack-tools"
+RDEPENDS_${PN} += " kernel-module-br-netfilter"
 
 inherit systemd
 inherit go
@@ -91,10 +94,14 @@ do_install() {
     install -d ${D}${localbindir}
     install -d ${D}/${libexecdir}/crio
     install -d ${D}/${sysconfdir}/crio
+    install -d ${D}/${sysconfdir}/sysctl.d
+    install -d ${D}/${sysconfdir}/modules-load.d
     install -d ${D}${systemd_unitdir}/system/
     install -d ${D}/usr/share/containers/oci/hooks.d
 
     install ${WORKDIR}/crio.conf ${D}/${sysconfdir}/crio/crio.conf
+    install ${WORKDIR}/crio-modules.conf ${D}/${sysconfdir}/modules-load.d/crio.conf
+    install ${WORKDIR}/99-kubernetes-cri.conf ${D}/${sysconfdir}/sysctl.d/99-kubernetes-cri.conf
 
     # sample config files, they'll go in the ${PN}-config below
     install -d ${D}/${sysconfdir}/crio/config/
