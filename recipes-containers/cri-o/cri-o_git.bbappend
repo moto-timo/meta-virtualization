@@ -3,6 +3,10 @@ SRC_URI += "\
     file://200-loopback.conf \
     "
 
+do_install_prepend() {
+  sed -e 's/cgroup_manager = "cgroupfs"/cgroup_manager = "systemd"/g' ${WORKDIR}/crio.conf
+}
+
 do_install_append() {
   install -d ${D}/${sysconfdir}/cni
   install -d ${D}/${sysconfdir}/cni/net.d
