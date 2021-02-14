@@ -3,15 +3,10 @@ SRC_URI += "\
     file://200-loopback.conf \
     "
 
-do_install_prepend() {
-  sed -e 's/cgroup_manager = "cgroupfs"/cgroup_manager = "systemd"/g' ${WORKDIR}/crio.conf
-}
+inherit cni_networking
+
+CNI_NETWORKING_FILES_append = " ${WORKDIR}/100-crio-bridge.conf ${WORKDIR}/200-loopback.conf"
 
 do_install_append() {
-  install -d ${D}/${sysconfdir}/cni
-  install -d ${D}/${sysconfdir}/cni/net.d
-  install -m 0644 ${WORKDIR}/100-crio-bridge.conf ${D}${sysconfdir}/cni/net.d/
-  install -m 0644 ${WORKDIR}/200-loopback.conf ${D}${sysconfdir}/cni/net.d/
+  sed -e 's/cgroup_manager = "cgroupfs"/cgroup_manager = "systemd"/g' ${D}/${sysconfdir}/crio/crio.conf
 }
-
-FILES_${PN}-config += "${sysconfdir}/cni/net.d/*.conf"
