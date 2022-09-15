@@ -36,11 +36,9 @@ RDEPENDS:${PN}-ptest += "file make gmp nettle gnutls bash libgcc"
 
 RDEPENDS:${PN}-networking += "iptables"
 
-SRC_URI = "git://github.com/lxc/lxc.git;branch=stable-4.0;protocol=https \
+SRC_URI = "git://github.com/lxc/lxc.git;branch=stable-5.0;protocol=https \
 	file://lxc-1.0.0-disable-udhcp-from-busybox-template.patch \
 	file://run-ptest \
-	file://lxc-fix-B-S.patch \
-	file://lxc-doc-upgrade-to-use-docbook-3.1-DTD.patch \
 	file://logs-optionally-use-base-filenames-to-report-src-fil.patch \
 	file://templates-actually-create-DOWNLOAD_TEMP-directory.patch \
 	file://template-make-busybox-template-compatible-with-core-.patch \
@@ -50,8 +48,8 @@ SRC_URI = "git://github.com/lxc/lxc.git;branch=stable-4.0;protocol=https \
 	file://lxc-net \
 	"
 
-SRCREV = "5ba5725cb4a210c25707beeca64fde5f561d1c71"
-PV = "4.0.12+git${SRCPV}"
+SRCREV = "0539095ac7130559093360c81cff8979f0de88e6"
+PV = "5.0.1+git${SRCPV}"
 
 S = "${WORKDIR}/git"
 
@@ -85,7 +83,7 @@ export HOST_SYS
 export STAGING_INCDIR
 export STAGING_LIBDIR
 
-inherit autotools pkgconfig ptest update-rc.d systemd python3native
+inherit meson pkgconfig ptest update-rc.d systemd python3native
 
 SYSTEMD_PACKAGES = "${PN} ${PN}-networking"
 SYSTEMD_SERVICE:${PN} = "lxc.service"
