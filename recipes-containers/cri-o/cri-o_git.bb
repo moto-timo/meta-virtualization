@@ -65,6 +65,12 @@ do_compile() {
 
 	cd ${S}/src/import
 
+	# temp. make slices available to the build
+	(
+	   cd ${STAGING_LIBDIR}/go/src/
+	   ln -sf ${S}/src/import/vendor/golang.org/x/exp/slices .
+        )
+
 	oe_runmake local-cross
 	oe_runmake binaries
 }
