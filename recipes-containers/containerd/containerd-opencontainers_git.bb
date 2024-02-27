@@ -53,6 +53,18 @@ do_compile() {
     export CFLAGS="${CFLAGS}"
     export LDFLAGS="${LDFLAGS}"
     export SHIM_CGO_ENABLED="${CGO_ENABLED}"
+
+    # TEMP: make 'slices' available in go 1.20, it is a standard package in go 1.21, but
+    # is already cloned into the vendor directory under exp/ for containerd
+    # if it isn't already cloned, the following can be used:
+    #
+    #   SRCREV_exp="613f0c0eb8a17a98ecdb096a7f9f7d5053c1c963"
+    #   SRC_URI += "git://go.googlesource.com/exp;name=exp;protocol=https;nobranch=1;destsuffix=git/src/github.com/containerd/containerd/vendor/golang.org/x/exp"
+    (
+        cd ${S}/vendor
+        ln -sf golang.org/x/exp/slices .
+    )
+
     # fixes:
     # cannot find package runtime/cgo (using -importcfg)
     #        ... recipe-sysroot-native/usr/lib/aarch64-poky-linux/go/pkg/tool/linux_amd64/link:
@@ -84,7 +96,7 @@ do_install() {
 	if ${@bb.utils.contains('DISTRO_FEATURES','systemd','true','false',d)}; then
 		install -d ${D}${systemd_unitdir}/system
 		install -m 644 ${S}/containerd.service ${D}/${systemd_unitdir}/system
-	        # adjust from /usr/local/bin to /usr/bin/
+		# adjust from /usr/local/bin to /usr/bin/
 		sed -e "s:/usr/local/bin/containerd:${bindir}/containerd:g" -i ${D}/${systemd_unitdir}/system/containerd.service
 	fi
 }
