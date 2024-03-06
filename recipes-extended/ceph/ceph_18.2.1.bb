@@ -94,7 +94,6 @@ do_configure:prepend () {
 	echo "set( CMAKE_EXE_LINKER_FLAGS \"${LDFLAGS}\" )" >> ${WORKDIR}/toolchain.cmake
 	echo "set( CMAKE_MODULE_LINKER_FLAGS \"${LDFLAGS}\" )" >> ${WORKDIR}/toolchain.cmake
 	echo "set( CMAKE_SHARED_LINKER_FLAGS \"${LDFLAGS}\" )" >> ${WORKDIR}/toolchain.cmake
-	echo "set( CMAKE_STATIC_LINKER_FLAGS rc )" >> ${WORKDIR}/toolchain.cmake
 }
 
 do_install:append () {
