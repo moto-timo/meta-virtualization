@@ -15,7 +15,7 @@ SRC_URI = "http://download.ceph.com/tarballs/ceph-${PV}.tar.gz \
            file://0001-cmake-add-support-for-python3.11.patch \
 "
 
-SRC_URI[sha256sum] = "495b63e1146c604018ae0cb29bf769b5d6235e3c95849c43513baf12bba1364d"
+SRC_URI[sha256sum] = "8075b03477f42ad23b1efd0cc1a0aa3fa037611fc059a91f5194e4b51c9d764a"
 
 DEPENDS = "boost bzip2 curl cryptsetup expat gperf-native \
            keyutils libaio libibverbs lua lz4 \
@@ -91,6 +91,10 @@ do_configure:prepend () {
 	echo "set( CMAKE_SYSROOT \"${RECIPE_SYSROOT}\" )" >> ${WORKDIR}/toolchain.cmake
 	echo "set( CMAKE_DESTDIR \"${D}\" )" >> ${WORKDIR}/toolchain.cmake
 	echo "set( PYTHON_SITEPACKAGES_DIR \"${PYTHON_SITEPACKAGES_DIR}\" )" >> ${WORKDIR}/toolchain.cmake
+	echo "set( CMAKE_EXE_LINKER_FLAGS \"${LDFLAGS}\" )" >> ${WORKDIR}/toolchain.cmake
+	echo "set( CMAKE_MODULE_LINKER_FLAGS \"${LDFLAGS}\" )" >> ${WORKDIR}/toolchain.cmake
+	echo "set( CMAKE_SHARED_LINKER_FLAGS \"${LDFLAGS}\" )" >> ${WORKDIR}/toolchain.cmake
+	echo "set( CMAKE_STATIC_LINKER_FLAGS \"${LDFLAGS}\" )" >> ${WORKDIR}/toolchain.cmake
 }
 
 do_install:append () {
