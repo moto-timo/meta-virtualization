@@ -7,13 +7,13 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=c6dd79b6ec2130a3364f6fa9d6380408 \
     file://LICENSE-Apache2.0;md5=3b83ef96387f14655fc854ddc3c6bd57 \
 "
 
-SRCREV = "e982c20875db3750c8dfc1915e7a4cee37376924"
+SRCREV = "d4661b15ba592b27dabb25691817e91edfaf1547"
 SRC_URI = "git://github.com/canonical/cloud-init;branch=24.1.x;protocol=https \
     file://cloud-init-source-local-lsb-functions.patch \
     file://0001-setup.py-check-for-install-anywhere-in-args.patch \
 "
 
-PV = "v23.4.1+git"
+PV = "v24.1.6+git"
 
 S = "${WORKDIR}/git"
 
@@ -31,7 +31,7 @@ do_install:append() {
 }
 
 inherit pkgconfig
-inherit setuptools3_legacy
+inherit python_setuptools_build_meta
 inherit update-rc.d
 inherit systemd
 
