@@ -41,17 +41,17 @@ do_install:append() {
 	install -d ${D}${datadir}/bash-completion/completions
 	mv ${D}${PYTHON_SITEPACKAGES_DIR}${datadir}/bash-completion/completions/* ${D}${datadir}/bash-completion/completions/
 
-	install -m 755 -d ${D}${systemd_system_unitdir}/
-	mv ${D}${PYTHON_SITEPACKAGES_DIR}${systemd_system_unitdir}/* ${D}${systemd_system_unitdir}/
+	#install -m 755 -d ${D}/${baselib}/systemd/system
+	#mv ${D}${PYTHON_SITEPACKAGES_DIR}/${baselib}/systemd/system/* ${D}/${baselib}/systemd/system/
 
 	install -m 755 -d ${D}${sysconfdir}/systemd/system
 	mv ${D}${PYTHON_SITEPACKAGES_DIR}${sysconfdir}/systemd/system/* ${D}${sysconfdir}/systemd/systemd/
 
-	install -m 755 -d ${D}${systemd_unitdir}/system-generators
-	mv ${D}${PYTHON_SITEPACKAGES_DIR}${systemd_unitdir}/system-generators/* ${D}${systemd_unitdir}/system-generators/
+	#install -m 755 -d ${D}${systemd_unitdir}/system-generators
+	#mv ${D}${PYTHON_SITEPACKAGES_DIR}${systemd_unitdir}/system-generators/* ${D}${systemd_unitdir}/system-generators/
 
-	install -d ${D}${base_libdir}/udev/rules.d
-	mv ${D}${PYTHON_SITEPACKAGES_DIR}${base_libdir}/udev/rules.d/* ${D}${base_libdir}/udev/rules.d/
+	#install -d ${D}${base_libdir}/udev/rules.d
+	#mv ${D}${PYTHON_SITEPACKAGES_DIR}${base_libdir}/udev/rules.d/* ${D}${base_libdir}/udev/rules.d/
     if ${@bb.utils.contains('DISTRO_FEATURES', 'sysvinit', 'true', 'false', d)}; then
        install -m 755 -d ${D}${sysconfdir}/init.d/
        install -m 755 ${S}/sysvinit/debian/* ${D}${sysconfdir}/init.d/
