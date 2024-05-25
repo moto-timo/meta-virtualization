@@ -21,18 +21,46 @@ DISTUTILS_INSTALL_ARGS:append = " ${@bb.utils.contains('DISTRO_FEATURES', 'sysvi
 DISTUTILS_INSTALL_ARGS:append = " ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', '--init-system=systemd', '', d)}"
 
 do_install:append() {
+    # mimic install locations from setup.py
+	install -d ${D}${libdir}/${BPN}
+	mv ${D}${PYTHON_SITEPACKAGES_DIR}${libdir}/* ${D}/${libdir}/
+
+	install -m 0755 ${S}/tools/uncloud-init ${D}${libdir}/${BPN}/uncloud-init
+	install -m 0755 ${S}/tools/write-ssh-key-fingerprints ${D}${libdir}/${BPN}/write-ssh-key-fingerprints
+
+	install -d ${D}${sysconfdir}/cloud
+	mv ${D}${PYTHON_SITEPACKAGES_DIR}${sysconfdir}/cloud/* ${D}${sysconfdir}/cloud/
+
+	install -d ${D}${datadir}/doc/${BPN}
+	mv ${D}${PYTHON_SITEPACKAGES_DIR}${datadir}/doc/${BPN}/* ${D}${datadir}/doc/${BPN}/
+
+	install -d ${D}${sysconfdir}/cloud
     ln -s ${libdir}/${BPN}/uncloud-init ${D}${sysconfdir}/cloud/uncloud-init
     ln -s ${libdir}/${BPN}/write-ssh-key-fingerprints ${D}${sysconfdir}/cloud/write-ssh-key-fingerprints
+
+	install -d ${D}${datadir}/bash-completion/completions
+	mv ${D}${PYTHON_SITEPACKAGES_DIR}${datadir}/bash-completion/completions/* ${D}${datadir}/bash-completion/completions/
+
+	install -m 755 -d ${D}${systemd_system_unitdir}/
+	mv ${D}${PYTHON_SITEPACKAGES_DIR}${systemd_system_unitdir}/* ${D}${systemd_system_unitdir}/
+
+	install -m 755 -d ${D}${sysconfdir}/systemd/system
+	mv ${D}${PYTHON_SITEPACKAGES_DIR}${sysconfdir}/systemd/system/* ${D}${sysconfdir}/systemd/systemd/
+
+	install -m 755 -d ${D}${systemd_unitdir}/system-generators
+	mv ${D}${PYTHON_SITEPACKAGES_DIR}${systemd_unitdir}/system-generators/* ${D}${systemd_unitdir}/system-generators/
+
+	install -d ${D}${base_libdir}/udev/rules.d
+	mv ${D}${PYTHON_SITEPACKAGES_DIR}${base_libdir}/udev/rules.d/* ${D}${base_libdir}/udev/rules.d/
     if ${@bb.utils.contains('DISTRO_FEATURES', 'sysvinit', 'true', 'false', d)}; then
        install -m 755 -d ${D}${sysconfdir}/init.d/
        install -m 755 ${S}/sysvinit/debian/* ${D}${sysconfdir}/init.d/
     fi
-
 }
 
 inherit pkgconfig
-# A lot of files are still installed with setup.py so pyproject.toml is not sufficient
-inherit setuptools3_legacy
+inherit python_setuptools_build_meta
+inherit python3-dir
 inherit update-rc.d
 inherit systemd
 
