@@ -37,6 +37,7 @@ class TestMemresBasic:
     don't interfere with user's memres in ~/.vdkr/.
     """
 
+    @pytest.mark.memres
     def test_memres_start(self, vdkr):
         """Test starting memory resident mode."""
         # Stop first if running
@@ -45,6 +46,7 @@ class TestMemresBasic:
         result = vdkr.memres_start(timeout=360)
         assert result.returncode == 0, f"memres start failed: {result.stderr}"
 
+    @pytest.mark.memres
     def test_memres_status(self, vdkr):
         """Test checking memory resident status."""
         if not vdkr.is_memres_running():
@@ -54,6 +56,7 @@ class TestMemresBasic:
         assert result.returncode == 0
         assert "running" in result.stdout.lower() or "started" in result.stdout.lower()
 
+    @pytest.mark.memres
     def test_memres_stop(self, vdkr):
         """Test stopping memory resident mode."""
         # Ensure running first
@@ -67,6 +70,7 @@ class TestMemresBasic:
         status = vdkr.memres_status()
         assert status.returncode != 0 or "not running" in status.stdout.lower()
 
+    @pytest.mark.memres
     def test_memres_restart(self, vdkr):
         """Test restarting memory resident mode."""
         result = vdkr.run("memres", "restart", timeout=360)
