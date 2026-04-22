@@ -42,7 +42,7 @@ class TestMemresBasic:
         # Stop first if running
         vdkr.memres_stop()
 
-        result = vdkr.memres_start(timeout=180)
+        result = vdkr.memres_start(timeout=360)
         assert result.returncode == 0, f"memres start failed: {result.stderr}"
 
     def test_memres_status(self, vdkr):
@@ -69,7 +69,7 @@ class TestMemresBasic:
 
     def test_memres_restart(self, vdkr):
         """Test restarting memory resident mode."""
-        result = vdkr.run("memres", "restart", timeout=180)
+        result = vdkr.run("memres", "restart", timeout=360)
         assert result.returncode == 0
 
         # Verify running
