@@ -58,12 +58,18 @@ INHIBIT_DEFAULT_DEPS = "1"
 # Dependencies:
 # 1. The tiny initramfs image (produces cpio.gz)
 # 2. The multiconfig rootfs image (produces squashfs)
-# 3. The kernel from main build
-#
-# Both initramfs and rootfs images are in the same multiconfig
+# 3. The kernel's do_deploy (so ${MC_DEPLOY}/${KERNEL_IMAGETYPE_INITRAMFS}
+#    — e.g. bzImage/Image — actually exists before do_compile reads it).
+#    Being a build-time dep of the rootfs image is not enough: image
+#    recipes don't imply virtual/kernel:do_deploy, so on an sstate-
+#    accelerated build the kernel binary never lands in MC_DEPLOY and
+#    this recipe silently deploys a kernel-less blob set, which later
+#    fatals in vcontainer-tarball as "vdkr blob not found: .../bzImage".
+#    The dep is intra-multiconfig (this recipe runs inside the mc), so
+#    a plain depends — not mcdepends — is correct.
 do_compile[depends] = "${VCONTAINER_RUNTIME}-tiny-initramfs-image:do_image_complete"
 do_compile[depends] += "${VCONTAINER_RUNTIME}-rootfs-image:do_image_complete"
-# mcdepends set conditionally in anonymous python below
+do_compile[depends] += "virtual/kernel:do_deploy"
 
 S = "${UNPACKDIR}"
 B = "${WORKDIR}/build"
@@ -152,7 +158,10 @@ do_compile() {
         KERNEL_SIZE=$(stat -c%s ${B}/kernel)
         bbnote "Kernel copied: ${KERNEL_SIZE} bytes ($(expr ${KERNEL_SIZE} / 1024 / 1024)MB)"
     else
-        bbwarn "Kernel not found at ${KERNEL_FILE} — check that the vruntime multiconfig kernel is built"
+        # Fatal rather than warn: silently shipping a kernel-less blob set
+        # lets vcontainer-tarball get much further before failing with a
+        # confusing "vdkr blob not found" and produces stale sstate.
+        bbfatal "Kernel not found at ${KERNEL_FILE}. This usually means virtual/kernel:do_deploy was not pulled into the multiconfig build graph; ensure do_compile[depends] includes virtual/kernel:do_deploy."
     fi
 }
 
