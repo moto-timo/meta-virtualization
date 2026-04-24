@@ -353,20 +353,57 @@ EOF
     script=${SDK_OUTPUT}/${SDKPATH}/environment-setup-${REAL_MULTIMACH_TARGET_SYS}
 
     # Create environment script
-    # Set OECORE_NATIVE_SYSROOT temporarily for SDK relocation, then unset it
-    # (like buildtools-tarball does to avoid confusing other Yocto tools)
+    #
+    # The script is written so that it works both when sourced by bash (the
+    # normal interactive / devshell case) AND when "installed" by
+    # yocto-autobuilder-helper's enable_tools_tarball() in CI, which does NOT
+    # source the file with bash -- it parses line by line in Python and only
+    # honours lines that start with "export " or "unset " at column 0, and
+    # only substitutes $PATH (see yocto-autobuilder-helper/scripts/utils.py).
+    #
+    # Consequences:
+    #  - The primary VCONTAINER_DIR / OECORE_NATIVE_SYSROOT / PATH values must
+    #    be emitted as plain `export FOO="<absolute-path>"` lines with the
+    #    absolute paths baked in at build time via Yocto variables
+    #    (${SDKPATH}, ${SDKPATHNATIVE}). Yocto SDK relocation rewrites these
+    #    paths at install time (via the installer's -d <dir> argument).
+    #  - PATH must not reference $VCONTAINER_DIR / $OECORE_NATIVE_SYSROOT via
+    #    shell indirection (the Python parser won't expand them); inline the
+    #    absolute paths there too.
+    #  - Any bash-only refinement (BASH_SOURCE-based relocation, final
+    #    unset of OECORE_NATIVE_SYSROOT) lives inside an `if` block so the
+    #    Python parser ignores it, while real bash still executes it.
     cat > $script <<'HEADER'
 #!/bin/bash
 # vcontainer environment setup script
 # Source this file: source environment-setup-none
 # Or use the symlink: source init-env.sh
-
-VCONTAINER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HEADER
-    # Yocto variables (${SDK_SYS}, ${SDKPATHNATIVE}) expand at parse time
-    # Shell variables use $VAR to avoid Yocto expansion
+    # Primary env vars: emit as plain `export FOO="<abs-path>"` so the
+    # yocto-autobuilder-helper Python parser picks them up. Yocto variables
+    # expand at bitbake time; the SDK installer's relocation pass rewrites
+    # the baked-in paths at install time.
+    echo '' >> $script
+    echo '# Primary values -- literal absolute paths that survive parsing by' >> $script
+    echo '# yocto-autobuilder-helper enable_tools_tarball() (not sourced by bash).' >> $script
+    echo '# SDK relocation at install time rewrites the absolute paths below.' >> $script
+    echo 'export VCONTAINER_DIR="'"${SDKPATH}"'"' >> $script
     echo 'export OECORE_NATIVE_SYSROOT="'"${SDKPATHNATIVE}"'"' >> $script
-    echo 'export PATH="$VCONTAINER_DIR:$OECORE_NATIVE_SYSROOT/usr/bin:/usr/bin:/bin:$PATH"' >> $script
+    echo 'export PATH="'"${SDKPATH}"':'"${SDKPATHNATIVE}"'/usr/bin:/usr/bin:/bin:$PATH"' >> $script
+
+    # Bash-only refinement: if the file is actually being sourced by bash,
+    # re-derive VCONTAINER_DIR from the real on-disk location so a manually
+    # moved/copied tarball still works. Invisible to the autobuilder Python
+    # parser (doesn't start with export/unset at column 0).
+    cat >> $script <<'BASHREFINE'
+
+# When sourced by bash (interactive / devshell), prefer the real on-disk
+# location so a manually-moved tarball still works.
+if [ -n "${BASH_SOURCE[0]:-}" ]; then
+    VCONTAINER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    export VCONTAINER_DIR
+fi
+BASHREFINE
     cat >> $script <<'FOOTER'
 
 echo "vcontainer environment configured."
@@ -395,11 +432,19 @@ echo ""
 echo "Architectures: ${VCONTAINER_ARCHITECTURES}"
 ENVEOF
 
-    # Unset OECORE_NATIVE_SYSROOT to avoid confusing other Yocto tools
-    # (same pattern as buildtools-tarball)
-    echo '' >> $script
-    echo '# Clean up - unset to avoid confusing other Yocto tools' >> $script
-    echo 'unset OECORE_NATIVE_SYSROOT' >> $script
+    # Gated unset: same pattern as buildtools-tarball (unset
+    # OECORE_NATIVE_SYSROOT after interactive sourcing so it doesn't confuse
+    # other Yocto tools), but guarded behind an `if` so the autobuilder's
+    # line-based parser (which matches "unset " only at column 0) leaves
+    # OECORE_NATIVE_SYSROOT set in the CI environment.
+    cat >> $script <<'UNSET_BLOCK'
+
+# Avoid confusing other Yocto tools post-source (matches buildtools-tarball).
+# Gated so yocto-autobuilder-helper's parser leaves OECORE_NATIVE_SYSROOT set.
+if [ -n "${BASH_SOURCE[0]:-}" ]; then
+    unset OECORE_NATIVE_SYSROOT
+fi
+UNSET_BLOCK
 
     # Replace placeholder with actual SDK_SYS
     sed -i -e "s:@SDK_SYS@:${SDK_SYS}:g" $script
