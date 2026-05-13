@@ -22,7 +22,16 @@ def squashspaces(s):
 def crunch_license(licfile):
     """
     Normalize license text by removing non-material content, then compute MD5.
-    Same algorithm as OE-core's oe/license_finder.py _crunch_license().
+
+    Mirrors OE-core's oe/license_finder.py _crunch_license() with one
+    additional normalization: the Apache-2.0-style appendix template
+    ("APPENDIX: How to apply the Apache License to your work." through
+    "limitations under the License.") is stripped so a LICENSE file that
+    includes the appendix hashes the same as one that omits it. Text
+    AFTER the appendix template (e.g. the LLVM Exception block in
+    Apache-2.0-with-LLVM-exception) is preserved as a differentiator.
+
+    Keep this in sync with _crunch_license_text() in oe-go-mod-fetcher.py.
     """
     license_title_re = re.compile(
         r'^#*\(? *(This is )?([Tt]he )?.{0,15} ?[Ll]icen[sc]e( \(.{1,10}\))?\)?[:\.]? ?#*$')
@@ -36,10 +45,22 @@ def crunch_license(licfile):
     header_re = re.compile(r'^(\/\**!?)? ?[\-=\*]* ?(\*\/)?$')
     tag_re = re.compile(r'^ *@?\(?([Ll]icense|MIT)\)?$')
     url_re = re.compile(r'^ *[#\*]* *https?:\/\/[\w\.\/\-]+$')
+    appendix_start_re = re.compile(r'^ *[#\*]* *APPENDIX:')
+    appendix_end_marker = "limitations under the License."
 
     lictext = []
+    in_appendix = False
     with open(licfile, 'r', errors='surrogateescape') as f:
         for line in f:
+            if in_appendix:
+                if line.rstrip().endswith(appendix_end_marker):
+                    in_appendix = False
+                continue
+            if appendix_start_re.match(line):
+                in_appendix = True
+                if line.rstrip().endswith(appendix_end_marker):
+                    in_appendix = False
+                continue
             if copyright_re.match(line):
                 continue
             if disclaimer_re.match(line):

@@ -4444,7 +4444,27 @@ def _squashspaces(s: str) -> str:
 
 
 def _crunch_license_text(text: str) -> Optional[str]:
-    """Compute crunched MD5 of license text (same algorithm as OE-core)."""
+    """
+    Compute crunched MD5 of license text.
+
+    Mirrors OE-core's oe/license_finder.py _crunch_license() with one
+    additional normalization: the Apache-2.0-style appendix template
+    ("APPENDIX: How to apply the Apache License to your work." through
+    "limitations under the License.") is stripped so a LICENSE file that
+    includes the appendix hashes the same as one that omits it. Text
+    AFTER the appendix template (e.g. the LLVM Exception block in
+    Apache-2.0-with-LLVM-exception) is preserved as a differentiator.
+
+    Five files in OE-core's common-licenses/ carry an appendix and are
+    affected: Apache-2.0, Apache-2.0-with-LLVM-exception, ECL-2.0,
+    SHL-0.5, SHL-0.51. Each still produces a distinct crunched hash
+    because the body text before APPENDIX (and post-appendix exception
+    text where present) is license-specific.
+
+    If you change this function, also update generate-license-hashes.py
+    and regenerate scripts/data/license-hashes.csv via:
+        bitbake <any-go-recipe> -c update_license_hashes
+    """
     license_title_re = re.compile(
         r'^#*\(? *(This is )?([Tt]he )?.{0,15} ?[Ll]icen[sc]e( \(.{1,10}\))?\)?[:\.]? ?#*$')
     license_statement_re = re.compile(
@@ -4457,9 +4477,28 @@ def _crunch_license_text(text: str) -> Optional[str]:
     header_re = re.compile(r'^(\/\**!?)? ?[\-=\*]* ?(\*\/)?$')
     tag_re = re.compile(r'^ *@?\(?([Ll]icense|MIT)\)?$')
     url_re = re.compile(r'^ *[#\*]* *https?:\/\/[\w\.\/\-]+$')
+    # Appendix template: starts at "APPENDIX:" line, ends at the line whose
+    # stripped tail is "limitations under the License." (inclusive of both
+    # markers; everything between is dropped). All 5 APPENDIX-bearing
+    # canonical files end their template with this phrase.
+    appendix_start_re = re.compile(r'^ *[#\*]* *APPENDIX:')
+    appendix_end_marker = "limitations under the License."
 
     lictext = []
+    in_appendix = False
     for line in text.splitlines():
+        if in_appendix:
+            if line.rstrip().endswith(appendix_end_marker):
+                in_appendix = False
+            # drop appendix lines (including start and end markers)
+            continue
+        if appendix_start_re.match(line):
+            in_appendix = True
+            # The start line might also end with the marker on a single-line
+            # appendix (e.g. SHL-0.5/0.51 collapse the template onto one line).
+            if line.rstrip().endswith(appendix_end_marker):
+                in_appendix = False
+            continue
         if copyright_re.match(line):
             continue
         if disclaimer_re.match(line):
