@@ -81,6 +81,11 @@
 #   GO_MOD_DISCOVERY_SKIP_LICENSES - Set to "1" to skip license scanning
 #                                    Default: "" (scan enabled)
 #
+#   GO_MOD_DISCOVERY_STRICT_LICENSES - Set to "1" to fail generation when any
+#                                      module resolves to spdx=Unknown
+#                                      Default: "" (warn but continue)
+#                                      Recommended for CI / uprev workflows
+#
 # WORKFLOW EXAMPLES:
 #
 # Full automatic (one command does everything):
@@ -133,6 +138,15 @@ GO_MOD_DISCOVERY_SKIP_VERIFY ?= ""
 # Set to "1" to bypass license scanning (default: scan licenses)
 # Usage: GO_MOD_DISCOVERY_SKIP_LICENSES = "1" in local.conf or recipe
 GO_MOD_DISCOVERY_SKIP_LICENSES ?= ""
+
+# Fail generation when any module resolves to spdx=Unknown
+# Set to "1" to refuse to overwrite go-mod-licenses.inc when license scanning
+# leaves any module classified as Unknown. The fetcher prints the offending
+# module list and the md5s that need to be appended to
+# scripts/data/observed-license-hashes.csv after upstream verification.
+# Recommended for CI / uprev workflows.
+# Usage: GO_MOD_DISCOVERY_STRICT_LICENSES = "1" in local.conf or recipe
+GO_MOD_DISCOVERY_STRICT_LICENSES ?= ""
 
 # Modules to exclude from git:// generation (space-separated prefixes)
 # Excluded modules must be fetched via gomod:// in the recipe's SRC_URI
@@ -421,6 +435,10 @@ Or run 'bitbake ${PN} -c show_upgrade_commands' to see manual options."
     LICENSE_FLAGS=""
     if [ "${GO_MOD_DISCOVERY_SKIP_LICENSES}" != "1" ]; then
         LICENSE_FLAGS="--scan-licenses --common-license-dir ${COMMON_LICENSE_DIR} --discovery-cache ${GO_MOD_DISCOVERY_DIR}/cache"
+        if [ "${GO_MOD_DISCOVERY_STRICT_LICENSES}" = "1" ]; then
+            echo "NOTE: Strict license mode enabled (GO_MOD_DISCOVERY_STRICT_LICENSES=1)"
+            LICENSE_FLAGS="${LICENSE_FLAGS} --strict-licenses"
+        fi
     fi
 
     python3 "${FETCHER_SCRIPT}" \
@@ -453,7 +471,8 @@ Or run 'bitbake ${PN} -c show_upgrade_commands' to see manual options."
 addtask generate_modules
 do_generate_modules[nostamp] = "1"
 do_generate_modules[vardeps] += "GO_MOD_DISCOVERY_MODULES_JSON GO_MOD_DISCOVERY_GIT_REPO \
-    GO_MOD_DISCOVERY_GIT_REF GO_MOD_DISCOVERY_RECIPEDIR GO_MOD_DISCOVERY_SKIP_LICENSES"
+    GO_MOD_DISCOVERY_GIT_REF GO_MOD_DISCOVERY_RECIPEDIR GO_MOD_DISCOVERY_SKIP_LICENSES \
+    GO_MOD_DISCOVERY_STRICT_LICENSES"
 do_generate_modules[postfuncs] = "do_show_hybrid_recommendation"
 
 # Show hybrid conversion recommendations after VCS generation
