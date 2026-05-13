@@ -2107,6 +2107,7 @@ def _execute(args: argparse.Namespace) -> int:
                 print(f"\n⚠️  Could not write corrected JSON: {e}")
 
         # License scanning (after successful generation)
+        license_scan_failed = False
         if args.scan_licenses and output_dir and not args.validate:
             print("\n" + "=" * 70)
             print("LICENSE SCANNING")
@@ -2127,7 +2128,42 @@ def _execute(args: argparse.Namespace) -> int:
                 if license_db:
                     lic_results = scan_module_licenses(modules, disc_cache, license_db)
                     if lic_results:
-                        write_license_inc(output_dir, lic_results)
+                        unknown_entries = sorted(
+                            (mv, md5, lf)
+                            for mv, (spdx, lf, md5) in lic_results.items()
+                            if spdx == 'Unknown'
+                        )
+                        if unknown_entries and args.strict_licenses:
+                            license_scan_failed = True
+                            print()
+                            print("=" * 70)
+                            print(f"ERROR: --strict-licenses set and "
+                                  f"{len(unknown_entries)} module(s) resolved to spdx=Unknown")
+                            print("=" * 70)
+                            print()
+                            print("Affected modules:")
+                            for mv, md5, lf in unknown_entries:
+                                print(f"  {mv}")
+                                print(f"    LICENSE file: pkg/mod/{mv}/{lf}")
+                                print(f"    md5:          {md5}")
+                            print()
+                            print("To resolve: inspect each LICENSE file, verify the upstream")
+                            print("SPDX identifier, and append the unique md5s below to")
+                            print("scripts/data/observed-license-hashes.csv:")
+                            print()
+                            print("  # md5,spdx,example_module,note")
+                            seen_md5 = set()
+                            for mv, md5, lf in unknown_entries:
+                                if md5 in seen_md5:
+                                    continue
+                                seen_md5.add(md5)
+                                print(f"  {md5},<SPDX>,{mv},")
+                            print()
+                            print("Refusing to overwrite go-mod-licenses.inc with Unknown entries.")
+                            print("Rerun without --strict-licenses to inspect the Unknown .inc,")
+                            print("or with the overlay updated to retry.")
+                        else:
+                            write_license_inc(output_dir, lic_results)
                     else:
                         print("  No license files found in module zips")
                 else:
@@ -2136,7 +2172,7 @@ def _execute(args: argparse.Namespace) -> int:
                 print("  Skipping license scan: no discovery cache found")
                 print("  Hint: pass --discovery-cache <path> or run via bitbake -c discover_and_generate")
 
-        exit_code = 0
+        exit_code = 1 if license_scan_failed else 0
     else:
         print("\n❌ FAILED - Recipe generation failed")
         exit_code = 1
@@ -4984,6 +5020,14 @@ Examples:
         "--scan-licenses",
         action="store_true",
         help="Scan module zips for license files and generate go-mod-licenses.inc"
+    )
+
+    parser.add_argument(
+        "--strict-licenses",
+        action="store_true",
+        help="Fail (non-zero exit, no .inc rewrite) when any module resolves to "
+             "spdx=Unknown. Surfaces missing observed-license-hashes.csv overlay "
+             "entries at uprev time instead of silently writing them into the .inc."
     )
 
     parser.add_argument(
