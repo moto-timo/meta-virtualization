@@ -4501,6 +4501,32 @@ def _load_license_db_from_csv(csv_path: str) -> Dict[str, str]:
     return md5_to_spdx
 
 
+def _load_observed_license_overlay(csv_path: str) -> Dict[str, str]:
+    """
+    Load MD5->SPDX overlay for real-world LICENSE files that don't match
+    OE-core's common-licenses/ canonical texts.
+
+    Format: md5,spdx,example_module,note
+    Lines starting with '#' and blank lines are skipped.
+    """
+    md5_to_spdx = {}
+    with open(csv_path, newline='') as f:
+        for lineno, raw in enumerate(f, 1):
+            line = raw.strip()
+            if not line or line.startswith('#'):
+                continue
+            parts = line.split(',')
+            if len(parts) < 2:
+                print(f"  WARNING: {csv_path}:{lineno}: ignoring malformed row")
+                continue
+            md5 = parts[0].strip()
+            spdx = parts[1].strip()
+            if not md5 or not spdx:
+                continue
+            md5_to_spdx[md5] = spdx
+    return md5_to_spdx
+
+
 def _find_common_license_dir() -> Optional[str]:
     """Auto-detect common-licenses dir by walking up from script location."""
     script_dir = Path(__file__).resolve().parent
@@ -4514,29 +4540,50 @@ def _find_common_license_dir() -> Optional[str]:
 
 def _resolve_license_db(common_license_dir: Optional[str]) -> Dict[str, str]:
     """Resolve the license hash database using the priority order."""
+    db: Dict[str, str] = {}
+    source_label = ""
+
     # Option 1: Explicit --common-license-dir
     if common_license_dir and os.path.isdir(common_license_dir):
         db = _build_license_db_from_dir(common_license_dir)
-        print(f"  License DB: {len(db)} hashes from {common_license_dir}")
-        return db
+        source_label = f"{len(db)} hashes from {common_license_dir}"
 
     # Option 2: Auto-detect from poky tree
-    auto_dir = _find_common_license_dir()
-    if auto_dir:
-        db = _build_license_db_from_dir(auto_dir)
-        print(f"  License DB: {len(db)} hashes (auto-detected {auto_dir})")
-        return db
+    if not db:
+        auto_dir = _find_common_license_dir()
+        if auto_dir:
+            db = _build_license_db_from_dir(auto_dir)
+            source_label = f"{len(db)} hashes (auto-detected {auto_dir})"
 
     # Option 3: Bundled CSV
-    csv_path = Path(__file__).resolve().parent / 'data' / 'license-hashes.csv'
-    if csv_path.exists():
-        db = _load_license_db_from_csv(str(csv_path))
-        print(f"  License DB: {len(db)} hashes from bundled CSV")
-        print(f"  WARNING: Using bundled CSV - may not include custom or recently-added licenses")
-        return db
+    if not db:
+        csv_path = Path(__file__).resolve().parent / 'data' / 'license-hashes.csv'
+        if csv_path.exists():
+            db = _load_license_db_from_csv(str(csv_path))
+            source_label = f"{len(db)} hashes from bundled CSV"
+            print(f"  License DB: {source_label}")
+            print(f"  WARNING: Using bundled CSV - may not include custom or recently-added licenses")
+            source_label = None  # already printed
 
-    print("  WARNING: No license database found - license scanning will mark all as Unknown")
-    return {}
+    if source_label:
+        print(f"  License DB: {source_label}")
+    elif not db:
+        print("  WARNING: No license database found - license scanning will mark all as Unknown")
+
+    # Always layer the observed-hashes overlay on top.
+    # This catches real-world LICENSE files (with copyright lines, appendices,
+    # markdown wrapping, etc.) that don't match OE-core's canonical texts even
+    # after _crunch_license_text normalization.
+    overlay_path = Path(__file__).resolve().parent / 'data' / 'observed-license-hashes.csv'
+    if overlay_path.exists():
+        overlay = _load_observed_license_overlay(str(overlay_path))
+        if overlay:
+            new_keys = sum(1 for k in overlay if k not in db)
+            db.update(overlay)
+            print(f"  License DB overlay: +{new_keys} new hashes from {overlay_path.name}"
+                  f" ({len(overlay)} total entries)")
+
+    return db
 
 
 def _is_license_file(filename: str) -> bool:
