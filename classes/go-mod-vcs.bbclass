@@ -1360,3 +1360,152 @@ python go_mod_fix_permissions() {
 
 # Run permission fix BEFORE do_unpack's cleandirs removes ${S}
 do_unpack[prefuncs] += "go_mod_fix_permissions"
+
+
+# =============================================================================
+# Pre-populate pkg/mod from gomod:// fetched zips
+# =============================================================================
+#
+# BitBake's gomod:// fetcher only deposits the downloaded module zip at
+# ${S}/pkg/mod/cache/download/<module>/@v/<version>.zip during do_unpack. It
+# does NOT extract the zip into ${S}/pkg/mod/<module>@<version>/. Go normally
+# extracts those zips on demand during do_compile, but:
+#
+#   1. Only modules actually imported by the build get extracted by `go build`.
+#      Transitive entries that appear in go.sum but aren't imported (e.g. the
+#      large fan-out of cloud SDK submodules pulled in by cosign) are never
+#      unpacked.
+#   2. do_populate_lic runs as soon as the LIC_FILES_CHKSUM URIs become
+#      resolvable. Even oe-core's `addtask do_compile before do_populate_lic`
+#      workaround only helps for the subset that go-build extracts.
+#
+# Because oe-go-mod-fetcher.py --scan-licenses emits a LIC_FILES_CHKSUM entry
+# for every discovered module (matching VCS-mode behaviour where every module
+# is extracted by do_create_module_cache), hybrid-mode builds end up with
+# hundreds of "LIC_FILES_CHKSUM points to an invalid file" QA errors for the
+# gomod:// modules that go-build never touched.
+#
+# This task closes the gap: after do_unpack and before do_populate_lic, walk
+# the gomod download cache and extract each zip into ${S}/pkg/mod/ so the
+# pkg/mod/<module>@<version>/<LICENSE> layout that go-mod-licenses.inc
+# references is fully populated. It is a no-op in VCS-only mode (no zips
+# exist in pkg/mod/cache/download/ at do_unpack time — they are produced
+# later by do_create_module_cache from the git checkouts) and idempotent
+# across reruns.
+#
+# GO_MOD_SKIP_ZIP_EXTRACTION="1" disables extraction (matching the existing
+# escape hatch used by do_create_module_cache).
+#
+
+python do_extract_gomod_cache() {
+    """
+    Extract every gomod:// fetched zip in ${S}/pkg/mod/cache/download/ into
+    ${S}/pkg/mod/ so that LICENSE files (and other top-level module files)
+    are visible on disk before do_populate_lic runs.
+
+    The zip's internal path layout is "<module>@<version>/<rel_path>" where
+    <module> preserves the unescaped (capital-letter) module path. We extract
+    using that layout directly so the resulting on-disk paths match the
+    LIC_FILES_CHKSUM entries emitted by oe-go-mod-fetcher.py --scan-licenses
+    (which also uses the unescaped form, see write_license_inc()).
+    """
+    import os
+    import stat
+    import zipfile
+    from pathlib import Path
+
+    s_dir = d.getVar('S')
+    if not s_dir:
+        bb.debug(1, "S is not set, skipping gomod cache extraction")
+        return
+
+    if d.getVar('GO_MOD_SKIP_ZIP_EXTRACTION') == "1":
+        bb.note("GO_MOD_SKIP_ZIP_EXTRACTION=1, skipping gomod cache extraction")
+        return
+
+    cache_root = Path(s_dir) / 'pkg' / 'mod' / 'cache' / 'download'
+    extract_dir = Path(s_dir) / 'pkg' / 'mod'
+
+    if not cache_root.is_dir():
+        bb.debug(1, f"No gomod download cache at {cache_root}, nothing to extract")
+        return
+
+    def make_writable(root):
+        """Add user write permission to root and everything below it.
+
+        Go's module cache is read-only by design, which would prevent
+        BitBake's do_unpack cleandirs from removing it on the next run.
+        """
+        try:
+            os.chmod(root, os.stat(root).st_mode | stat.S_IWUSR)
+        except OSError:
+            pass
+        for r, dirs, files in os.walk(str(root)):
+            for name in dirs + files:
+                p = os.path.join(r, name)
+                try:
+                    os.chmod(p, os.stat(p).st_mode | stat.S_IWUSR)
+                except OSError:
+                    pass
+
+    def find_prefix(zf):
+        """Return the '<module>@<version>' prefix used inside the zip."""
+        for name in zf.namelist():
+            at_idx = name.find('@')
+            if at_idx < 0:
+                continue
+            slash_idx = name.find('/', at_idx)
+            if slash_idx < 0:
+                continue
+            return name[:slash_idx]
+        return None
+
+    extracted = 0
+    skipped = 0
+    failed = 0
+
+    # rglob('@v/*.zip') matches the BitBake gomod fetcher's deposit layout:
+    #   pkg/mod/cache/download/<module>/@v/<version>.zip
+    for zip_path in sorted(cache_root.rglob('@v/*.zip')):
+        try:
+            with zipfile.ZipFile(zip_path, 'r') as zf:
+                prefix = find_prefix(zf)
+                if not prefix:
+                    bb.warn(f"Skipping {zip_path}: cannot determine module@version prefix")
+                    failed += 1
+                    continue
+
+                target = extract_dir / prefix
+                if target.exists():
+                    # Already extracted by a previous run, by
+                    # do_create_module_cache (for VCS-fetched modules), or by
+                    # an on-demand go-build extraction. Leave it alone.
+                    skipped += 1
+                    continue
+
+                zf.extractall(extract_dir)
+
+                if target.exists():
+                    make_writable(target)
+                    extracted += 1
+                    bb.debug(1, f"Extracted {prefix} from {zip_path.relative_to(cache_root)}")
+                else:
+                    # The zip parsed but produced no <prefix>/ directory.
+                    # Treat as failure so it shows up in the summary.
+                    bb.warn(f"Extracted {zip_path} but {target} is missing")
+                    failed += 1
+        except (zipfile.BadZipFile, OSError) as e:
+            bb.warn(f"Failed to extract {zip_path}: {e}")
+            failed += 1
+
+    bb.note(
+        f"gomod cache extraction: {extracted} extracted, "
+        f"{skipped} already present, {failed} failed"
+    )
+}
+
+# Order: after do_unpack so the gomod:// fetcher has deposited the zips,
+# before do_populate_lic so LIC_FILES_CHKSUM entries resolve, and before
+# do_create_module_cache / do_configure so the VCS-fetched extraction sees
+# a consistent pkg/mod/ layout.
+addtask extract_gomod_cache after do_unpack before do_populate_lic do_create_module_cache do_configure

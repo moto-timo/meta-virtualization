@@ -2107,6 +2107,7 @@ def _execute(args: argparse.Namespace) -> int:
                 print(f"\n⚠️  Could not write corrected JSON: {e}")
 
         # License scanning (after successful generation)
+        license_scan_failed = False
         if args.scan_licenses and output_dir and not args.validate:
             print("\n" + "=" * 70)
             print("LICENSE SCANNING")
@@ -2127,7 +2128,42 @@ def _execute(args: argparse.Namespace) -> int:
                 if license_db:
                     lic_results = scan_module_licenses(modules, disc_cache, license_db)
                     if lic_results:
-                        write_license_inc(output_dir, lic_results)
+                        unknown_entries = sorted(
+                            (mv, md5, lf)
+                            for mv, (spdx, lf, md5) in lic_results.items()
+                            if spdx == 'Unknown'
+                        )
+                        if unknown_entries and args.strict_licenses:
+                            license_scan_failed = True
+                            print()
+                            print("=" * 70)
+                            print(f"ERROR: --strict-licenses set and "
+                                  f"{len(unknown_entries)} module(s) resolved to spdx=Unknown")
+                            print("=" * 70)
+                            print()
+                            print("Affected modules:")
+                            for mv, md5, lf in unknown_entries:
+                                print(f"  {mv}")
+                                print(f"    LICENSE file: pkg/mod/{mv}/{lf}")
+                                print(f"    md5:          {md5}")
+                            print()
+                            print("To resolve: inspect each LICENSE file, verify the upstream")
+                            print("SPDX identifier, and append the unique md5s below to")
+                            print("scripts/data/observed-license-hashes.csv:")
+                            print()
+                            print("  # md5,spdx,example_module,note")
+                            seen_md5 = set()
+                            for mv, md5, lf in unknown_entries:
+                                if md5 in seen_md5:
+                                    continue
+                                seen_md5.add(md5)
+                                print(f"  {md5},<SPDX>,{mv},")
+                            print()
+                            print("Refusing to overwrite go-mod-licenses.inc with Unknown entries.")
+                            print("Rerun without --strict-licenses to inspect the Unknown .inc,")
+                            print("or with the overlay updated to retry.")
+                        else:
+                            write_license_inc(output_dir, lic_results)
                     else:
                         print("  No license files found in module zips")
                 else:
@@ -2136,7 +2172,7 @@ def _execute(args: argparse.Namespace) -> int:
                 print("  Skipping license scan: no discovery cache found")
                 print("  Hint: pass --discovery-cache <path> or run via bitbake -c discover_and_generate")
 
-        exit_code = 0
+        exit_code = 1 if license_scan_failed else 0
     else:
         print("\n❌ FAILED - Recipe generation failed")
         exit_code = 1
@@ -4408,7 +4444,27 @@ def _squashspaces(s: str) -> str:
 
 
 def _crunch_license_text(text: str) -> Optional[str]:
-    """Compute crunched MD5 of license text (same algorithm as OE-core)."""
+    """
+    Compute crunched MD5 of license text.
+
+    Mirrors OE-core's oe/license_finder.py _crunch_license() with one
+    additional normalization: the Apache-2.0-style appendix template
+    ("APPENDIX: How to apply the Apache License to your work." through
+    "limitations under the License.") is stripped so a LICENSE file that
+    includes the appendix hashes the same as one that omits it. Text
+    AFTER the appendix template (e.g. the LLVM Exception block in
+    Apache-2.0-with-LLVM-exception) is preserved as a differentiator.
+
+    Five files in OE-core's common-licenses/ carry an appendix and are
+    affected: Apache-2.0, Apache-2.0-with-LLVM-exception, ECL-2.0,
+    SHL-0.5, SHL-0.51. Each still produces a distinct crunched hash
+    because the body text before APPENDIX (and post-appendix exception
+    text where present) is license-specific.
+
+    If you change this function, also update generate-license-hashes.py
+    and regenerate scripts/data/license-hashes.csv via:
+        bitbake <any-go-recipe> -c update_license_hashes
+    """
     license_title_re = re.compile(
         r'^#*\(? *(This is )?([Tt]he )?.{0,15} ?[Ll]icen[sc]e( \(.{1,10}\))?\)?[:\.]? ?#*$')
     license_statement_re = re.compile(
@@ -4421,9 +4477,28 @@ def _crunch_license_text(text: str) -> Optional[str]:
     header_re = re.compile(r'^(\/\**!?)? ?[\-=\*]* ?(\*\/)?$')
     tag_re = re.compile(r'^ *@?\(?([Ll]icense|MIT)\)?$')
     url_re = re.compile(r'^ *[#\*]* *https?:\/\/[\w\.\/\-]+$')
+    # Appendix template: starts at "APPENDIX:" line, ends at the line whose
+    # stripped tail is "limitations under the License." (inclusive of both
+    # markers; everything between is dropped). All 5 APPENDIX-bearing
+    # canonical files end their template with this phrase.
+    appendix_start_re = re.compile(r'^ *[#\*]* *APPENDIX:')
+    appendix_end_marker = "limitations under the License."
 
     lictext = []
+    in_appendix = False
     for line in text.splitlines():
+        if in_appendix:
+            if line.rstrip().endswith(appendix_end_marker):
+                in_appendix = False
+            # drop appendix lines (including start and end markers)
+            continue
+        if appendix_start_re.match(line):
+            in_appendix = True
+            # The start line might also end with the marker on a single-line
+            # appendix (e.g. SHL-0.5/0.51 collapse the template onto one line).
+            if line.rstrip().endswith(appendix_end_marker):
+                in_appendix = False
+            continue
         if copyright_re.match(line):
             continue
         if disclaimer_re.match(line):
@@ -4501,6 +4576,32 @@ def _load_license_db_from_csv(csv_path: str) -> Dict[str, str]:
     return md5_to_spdx
 
 
+def _load_observed_license_overlay(csv_path: str) -> Dict[str, str]:
+    """
+    Load MD5->SPDX overlay for real-world LICENSE files that don't match
+    OE-core's common-licenses/ canonical texts.
+
+    Format: md5,spdx,example_module,note
+    Lines starting with '#' and blank lines are skipped.
+    """
+    md5_to_spdx = {}
+    with open(csv_path, newline='') as f:
+        for lineno, raw in enumerate(f, 1):
+            line = raw.strip()
+            if not line or line.startswith('#'):
+                continue
+            parts = line.split(',')
+            if len(parts) < 2:
+                print(f"  WARNING: {csv_path}:{lineno}: ignoring malformed row")
+                continue
+            md5 = parts[0].strip()
+            spdx = parts[1].strip()
+            if not md5 or not spdx:
+                continue
+            md5_to_spdx[md5] = spdx
+    return md5_to_spdx
+
+
 def _find_common_license_dir() -> Optional[str]:
     """Auto-detect common-licenses dir by walking up from script location."""
     script_dir = Path(__file__).resolve().parent
@@ -4514,29 +4615,50 @@ def _find_common_license_dir() -> Optional[str]:
 
 def _resolve_license_db(common_license_dir: Optional[str]) -> Dict[str, str]:
     """Resolve the license hash database using the priority order."""
+    db: Dict[str, str] = {}
+    source_label = ""
+
     # Option 1: Explicit --common-license-dir
     if common_license_dir and os.path.isdir(common_license_dir):
         db = _build_license_db_from_dir(common_license_dir)
-        print(f"  License DB: {len(db)} hashes from {common_license_dir}")
-        return db
+        source_label = f"{len(db)} hashes from {common_license_dir}"
 
     # Option 2: Auto-detect from poky tree
-    auto_dir = _find_common_license_dir()
-    if auto_dir:
-        db = _build_license_db_from_dir(auto_dir)
-        print(f"  License DB: {len(db)} hashes (auto-detected {auto_dir})")
-        return db
+    if not db:
+        auto_dir = _find_common_license_dir()
+        if auto_dir:
+            db = _build_license_db_from_dir(auto_dir)
+            source_label = f"{len(db)} hashes (auto-detected {auto_dir})"
 
     # Option 3: Bundled CSV
-    csv_path = Path(__file__).resolve().parent / 'data' / 'license-hashes.csv'
-    if csv_path.exists():
-        db = _load_license_db_from_csv(str(csv_path))
-        print(f"  License DB: {len(db)} hashes from bundled CSV")
-        print(f"  WARNING: Using bundled CSV - may not include custom or recently-added licenses")
-        return db
+    if not db:
+        csv_path = Path(__file__).resolve().parent / 'data' / 'license-hashes.csv'
+        if csv_path.exists():
+            db = _load_license_db_from_csv(str(csv_path))
+            source_label = f"{len(db)} hashes from bundled CSV"
+            print(f"  License DB: {source_label}")
+            print(f"  WARNING: Using bundled CSV - may not include custom or recently-added licenses")
+            source_label = None  # already printed
 
-    print("  WARNING: No license database found - license scanning will mark all as Unknown")
-    return {}
+    if source_label:
+        print(f"  License DB: {source_label}")
+    elif not db:
+        print("  WARNING: No license database found - license scanning will mark all as Unknown")
+
+    # Always layer the observed-hashes overlay on top.
+    # This catches real-world LICENSE files (with copyright lines, appendices,
+    # markdown wrapping, etc.) that don't match OE-core's canonical texts even
+    # after _crunch_license_text normalization.
+    overlay_path = Path(__file__).resolve().parent / 'data' / 'observed-license-hashes.csv'
+    if overlay_path.exists():
+        overlay = _load_observed_license_overlay(str(overlay_path))
+        if overlay:
+            new_keys = sum(1 for k in overlay if k not in db)
+            db.update(overlay)
+            print(f"  License DB overlay: +{new_keys} new hashes from {overlay_path.name}"
+                  f" ({len(overlay)} total entries)")
+
+    return db
 
 
 def _is_license_file(filename: str) -> bool:
@@ -4937,6 +5059,14 @@ Examples:
         "--scan-licenses",
         action="store_true",
         help="Scan module zips for license files and generate go-mod-licenses.inc"
+    )
+
+    parser.add_argument(
+        "--strict-licenses",
+        action="store_true",
+        help="Fail (non-zero exit, no .inc rewrite) when any module resolves to "
+             "spdx=Unknown. Surfaces missing observed-license-hashes.csv overlay "
+             "entries at uprev time instead of silently writing them into the .inc."
     )
 
     parser.add_argument(

@@ -28,7 +28,7 @@ LIC_FILES_CHKSUM = "file://src/import/LICENSE;md5=175792518e4ac015ab6696d16c4f60
 
 GO_IMPORT = "import"
 
-PV = "5.0.0"
+PV = "5.1.0"
 
 COMPOSE_PKG = "github.com/docker/compose/v2"
 

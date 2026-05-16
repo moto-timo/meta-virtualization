@@ -327,27 +327,43 @@ normalize_arch_from_oci() {
     esac
 }
 
-# Check if OCI directory contains a multi-architecture Image Index
-# Usage: is_oci_image_index <oci_dir>
-# Returns: 0 if multi-arch, 1 if single-arch or not OCI
-is_oci_image_index() {
+# Resolve the file containing platform manifests in an OCI directory.
+# Handles two layouts:
+#   Flat:   index.json directly contains manifests with platform info
+#   Nested: index.json → single image index blob → platform manifests
+#           (skopeo-compatible format)
+# Usage: _resolve_oci_platform_file <oci_dir>
+# Prints: path to the file containing platform manifests, or empty
+_resolve_oci_platform_file() {
     local oci_dir="$1"
 
     [ -f "$oci_dir/index.json" ] || return 1
 
-    # Check if index.json has manifests with platform info
-    # Multi-arch images have "platform" object in manifest entries
+    # Flat layout: platform info directly in index.json
     if grep -q '"platform"' "$oci_dir/index.json" 2>/dev/null; then
-        # Also verify there are multiple manifests
-        local manifest_count=$(grep -c '"digest"' "$oci_dir/index.json" 2>/dev/null || echo "0")
-        [ "$manifest_count" -gt 1 ] && return 0
-
-        # Single manifest with platform info is also a valid Image Index
-        # (could be a multi-arch image built with only one arch so far)
+        echo "$oci_dir/index.json"
         return 0
     fi
 
+    # Nested layout: index.json has a single entry with image.index mediaType
+    if grep -q 'image\.index' "$oci_dir/index.json" 2>/dev/null; then
+        local index_digest=$(grep -o '"sha256:[a-f0-9]*"' "$oci_dir/index.json" 2>/dev/null | head -1 | tr -d '"' | sed 's/sha256://')
+        if [ -n "$index_digest" ] && [ -f "$oci_dir/blobs/sha256/$index_digest" ]; then
+            if grep -q '"platform"' "$oci_dir/blobs/sha256/$index_digest" 2>/dev/null; then
+                echo "$oci_dir/blobs/sha256/$index_digest"
+                return 0
+            fi
+        fi
+    fi
+
     return 1
+}
+
+# Check if OCI directory contains a multi-architecture Image Index
+# Usage: is_oci_image_index <oci_dir>
+# Returns: 0 if multi-arch, 1 if single-arch or not OCI
+is_oci_image_index() {
+    _resolve_oci_platform_file "$1" >/dev/null 2>&1
 }
 
 # Get list of available platforms in a multi-arch OCI Image Index
@@ -355,12 +371,10 @@ is_oci_image_index() {
 # Returns: Space-separated list of architectures (e.g., "arm64 amd64")
 get_oci_platforms() {
     local oci_dir="$1"
+    local platform_file
+    platform_file=$(_resolve_oci_platform_file "$oci_dir") || return 1
 
-    [ -f "$oci_dir/index.json" ] || return 1
-
-    # Extract architecture values from platform objects
-    # Format: "platform": { "architecture": "arm64", "os": "linux" }
-    grep -o '"architecture"[[:space:]]*:[[:space:]]*"[^"]*"' "$oci_dir/index.json" 2>/dev/null | \
+    grep -o '"architecture"[[:space:]]*:[[:space:]]*"[^"]*"' "$platform_file" 2>/dev/null | \
         sed 's/.*"\([^"]*\)"$/\1/' | \
         tr '\n' ' ' | sed 's/ $//'
 }
@@ -373,38 +387,34 @@ select_platform_manifest() {
     local oci_dir="$1"
     local target_arch="$2"
 
-    [ -f "$oci_dir/index.json" ] || return 1
-
     # Normalize target arch to OCI convention
     local oci_arch=$(normalize_arch_to_oci "$target_arch")
 
-    # Parse index.json to find manifest with matching platform
+    # Resolve the file containing platform manifests (flat or nested)
+    local manifest_index
+    manifest_index=$(_resolve_oci_platform_file "$oci_dir") || return 1
+
+    # Parse the manifest index to find manifest with matching platform
     # This is done without jq using grep/sed for portability
     local in_manifest=0
     local current_digest=""
     local current_arch=""
     local matched_digest=""
 
-    # Read index.json line by line
     while IFS= read -r line; do
-        # Track when we're inside a manifest entry
         if echo "$line" | grep -q '"manifests"'; then
             in_manifest=1
             continue
         fi
 
         if [ "$in_manifest" = "1" ]; then
-            # Extract digest
             if echo "$line" | grep -q '"digest"'; then
                 current_digest=$(echo "$line" | sed 's/.*"sha256:\([a-f0-9]*\)".*/\1/')
             fi
 
-            # Extract architecture from platform
-            # Handle both formats: "architecture": "arm64" or {"architecture": "arm64", ...}
             if echo "$line" | grep -q '"architecture"'; then
                 current_arch=$(echo "$line" | sed 's/.*"architecture"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
 
-                # Check if this matches our target
                 if [ "$current_arch" = "$oci_arch" ]; then
                     matched_digest="$current_digest"
                     OCI_SELECTED_PLATFORM="$current_arch"
@@ -412,13 +422,12 @@ select_platform_manifest() {
                 fi
             fi
 
-            # Reset on closing brace (end of manifest entry)
             if echo "$line" | grep -q '^[[:space:]]*}'; then
                 current_digest=""
                 current_arch=""
             fi
         fi
-    done < "$oci_dir/index.json"
+    done < "$manifest_index"
 
     if [ -n "$matched_digest" ]; then
         echo "$matched_digest"
@@ -1876,11 +1885,11 @@ case "$COMMAND" in
 
                 # Check for multi-architecture OCI Image Index
                 if is_oci_image_index "$INPUT_PATH"; then
-                    local available_platforms=$(get_oci_platforms "$INPUT_PATH")
+                    available_platforms=$(get_oci_platforms "$INPUT_PATH")
                     [ "$VERBOSE" = "true" ] && echo -e "${CYAN}[$VCONTAINER_RUNTIME_NAME]${NC} Multi-arch OCI detected. Available: $available_platforms" >&2
 
                     # Select manifest for target architecture
-                    local manifest_digest=$(select_platform_manifest "$INPUT_PATH" "$TARGET_ARCH")
+                    manifest_digest=$(select_platform_manifest "$INPUT_PATH" "$TARGET_ARCH")
                     if [ -z "$manifest_digest" ]; then
                         echo -e "${RED}[$VCONTAINER_RUNTIME_NAME]${NC} Architecture $TARGET_ARCH not found in multi-arch image" >&2
                         echo -e "${YELLOW}[$VCONTAINER_RUNTIME_NAME]${NC} Available platforms: $available_platforms" >&2
@@ -1888,7 +1897,7 @@ case "$COMMAND" in
                         exit 1
                     fi
 
-                    echo -e "${GREEN}[$VCONTAINER_RUNTIME_NAME]${NC} Selected platform: $OCI_SELECTED_PLATFORM (from multi-arch image)" >&2
+                    echo -e "${GREEN}[$VCONTAINER_RUNTIME_NAME]${NC} Selected platform: $(normalize_arch_to_oci "$TARGET_ARCH")/linux (from multi-arch image)" >&2
 
                     # Extract single-platform OCI to temp directory
                     TEMP_OCI_DIR=$(mktemp -d)

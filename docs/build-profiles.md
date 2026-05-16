@@ -17,9 +17,22 @@ meta-virt-host.conf              <- base (always required first)
   container-host-containerd.conf
   container-host-k3s.conf
   container-host-k3s-node.conf
+  container-host-incus.conf
   xen-host.conf                  <- Xen support (composable)
+  kvm-host.conf                  <- KVM/libvirt support (composable)
 meta-virt-dev.conf               <- QEMU dev settings (opt-in)
 container-registry.conf          <- registry config (opt-in)
+
+Distro configs:
+  vruntime.conf                  <- minimal VM rootfs (BBMASK, busybox init)
+  vcontainer.conf                <- OCI image builder (no BBMASK, full packages)
+    both share: vruntime-base.inc  <- stripped DISTRO_FEATURES, opted-out features
+
+Multiconfigs (set by meta-virt-host.conf):
+  vruntime-aarch64               <- vdkr/vpdmn VM rootfs builds
+  vruntime-x86-64
+  container-aarch64              <- OCI container image builds
+  container-x86-64
 ```
 
 ## Quick Start
@@ -80,7 +93,11 @@ The foundation for all virtualization work. Must be included first.
 **Sets:**
 - `DISTRO_FEATURES:append = " virtualization systemd seccomp vmsep vcontainer"`
 - `PREFERRED_PROVIDER_virtual/runc ?= "runc"`
-- `BBMULTICONFIG ?= "vruntime-aarch64 vruntime-x86-64"`
+- `BBMULTICONFIG ?= "vruntime-aarch64 vruntime-x86-64 container-aarch64 container-x86-64"`
+
+The `vruntime-*` multiconfigs use the `vruntime` distro (BBMASK for minimal VM
+rootfs). The `container-*` multiconfigs use the `vcontainer` distro (no BBMASK,
+full OCI tooling available) for building multi-arch container images.
 
 **Use standalone** for custom/mixed configurations where you want to set
 CONTAINER_PROFILE and other variables manually.
@@ -143,6 +160,15 @@ Xen hypervisor support. Composable with any container profile.
 
 **Use with:** `bitbake xen-image-minimal`
 
+### kvm-host.conf
+
+KVM/libvirt support. Composable with any container profile.
+
+**Sets:**
+- `DISTRO_FEATURES:append = " kvm"`
+
+**Use with:** `bitbake kvm-image-minimal`
+
 ### meta-virt-dev.conf
 
 QEMU development and testing settings. Only include when developing
@@ -173,6 +199,59 @@ CONTAINER_REGISTRY_URL = "registry.example.com:5000"
 CONTAINER_REGISTRY_SECURE = "1"
 CONTAINER_REGISTRY_USERNAME = "myuser"
 ```
+
+## Multi-Architecture Container Images
+
+The `container-aarch64` and `container-x86-64` multiconfigs build OCI
+container images using the `vcontainer` distro. This distro shares the same
+stripped `DISTRO_FEATURES` as `vruntime` (via `vruntime-base.inc`) but
+without the BBMASK that blocks OCI tooling like umoci.
+
+### Build Commands
+
+```bash
+# Single-arch container image
+bitbake mc:container-x86-64:container-base
+
+# Multi-arch OCI Image Index (aarch64 + x86_64)
+bitbake container-base-multiarch
+
+# Import into vdkr (auto-selects host platform)
+vdkr vimport tmp/deploy/images/*/container-base-multiarch-multiarch-oci container-base:latest
+```
+
+### Custom Multi-Arch Recipes
+
+Create a recipe that inherits `oci-multiarch`:
+
+```
+# myapp-container-multiarch.bb
+SUMMARY = "Multi-arch myapp container"
+LICENSE = "MIT"
+
+inherit oci-multiarch
+
+OCI_MULTIARCH_RECIPE = "myapp-container"
+OCI_MULTIARCH_PLATFORMS = "aarch64 x86_64"
+```
+
+The `myapp-container.bb` recipe must inherit `image-oci` and produce OCI output.
+
+### vcontainer vs vruntime
+
+| | vruntime | vcontainer |
+|--|----------|------------|
+| **Purpose** | VM rootfs for vdkr/vpdmn | OCI container images |
+| **BBMASK** | Aggressive (blocks OCI tools) | Lighter (keeps OCI tools) |
+| **Init** | busybox | (per recipe) |
+| **IMAGE_FSTYPES** | ext4 | (per recipe) |
+| **Multiconfigs** | vruntime-aarch64, vruntime-x86-64 | container-aarch64, container-x86-64 |
+| **Shared base** | vruntime-base.inc | vruntime-base.inc |
+
+Both distros mask graphics, multimedia, desktop, virtualization platforms,
+and orchestration tools. The difference is that vruntime additionally masks
+OCI tooling (umoci, container-registry, image recipes, sloci) that
+vcontainer needs for building container images.
 
 ## Design Notes
 
