@@ -9,7 +9,7 @@ GO_IMPORT = "github.com/sigstore/cosign"
 
 SRC_URI = "git://github.com/sigstore/cosign.git;branch=main;name=cosign;protocol=https;destsuffix=${GO_SRCURI_DESTSUFFIX}"
 PV = "3.0.6+git"
-SRCREV_cosign = "f1ad3ee952313be5d74a49d67ba0aa8d0d5e351f"
+SRCREV_cosign = "55f4d9e2085a6f3c72f2809076655b4745dfab7e"
 
 SRCREV_FORMAT = "cosign"
 
@@ -22,12 +22,12 @@ GO_MOD_DISCOVERY_GIT_REF = "${SRCREV_cosign}"
 # Modules that can't be fetched via git (no repo metadata or unreachable commits)
 # - buf.build/gen/go: generated protobuf module, no git repository
 # - software.sslmate.com/src/go-pkcs12: commit not reachable via shallow fetch
-SRC_URI += "gomod://buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go;version=v1.36.11-20260209202127-80ab13bee0bf.1;sha256sum=${COSIGN_BUF_BUILD_SHA}"
+SRC_URI += "gomod://buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go;version=v1.36.11-20260415201107-50325440f8f2.1;sha256sum=${COSIGN_BUF_BUILD_SHA}"
 SRC_URI += "gomod://software.sslmate.com/src/go-pkcs12;version=v0.4.0;sha256sum=${COSIGN_PKCS12_SHA}"
 GO_MOD_VCS_EXCLUDE = "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go software.sslmate.com/src/go-pkcs12"
 
 # Checksums — run bitbake cosign -c fetch to get correct values on first use
-COSIGN_BUF_BUILD_SHA ?= "907cb90a97d72b869a0f2f08e71ebdaaa5a0efa57ca72ebd7d14ed5a9922b541"
+COSIGN_BUF_BUILD_SHA ?= "d07eb34c7a90d2a86ab3cca1040e4ef23a8ef419416ce90cc7b736ceb33bb366"
 COSIGN_PKCS12_SHA ?= "55019a391e5302a51ba62e98909e006224b81207866da90beaf582ec0dee036f"
 
 # GO_MOD_FETCH_MODE: "vcs" (all git://) or "hybrid" (gomod:// + git://)
