@@ -2,9 +2,31 @@ SUMMARY = "Curl Application container image"
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://${COREBASE}/meta/COPYING.MIT;md5=3da9cfbcb788c80a0384361b4de20420"
 
+# Multi-layer mode: create explicit layers instead of single rootfs layer
+OCI_LAYER_MODE = "multi"
+
+# Optional 'dev' mode:
+#   - runs the container as root (UID 0)
+# Enable with: PACKAGECONFIG:pn-app-container-curl = "dev"
+PACKAGECONFIG ??= ""
+PACKAGECONFIG[dev] = ""
+
+# Define layers: each layer contains specific packages
+# Format: "name:type:content" where content uses + as delimiter for multiple items
+OCI_LAYERS = "\
+    base:packages:base-files+base-passwd+netbase \
+    ${@bb.utils.contains('PACKAGECONFIG', 'dev', 'shell:packages:${CONTAINER_SHELL}', '', d)} \
+    curl:packages:curl+ca-certificates \
+"
+
+# In 'dev' mode, override the nonroot UID inherited from container-nonroot-user
+# so the container runs as root.
+OCI_IMAGE_RUNTIME_UID = "${@bb.utils.contains('PACKAGECONFIG', 'dev', '0', '${NONROOT_UID}', d)}"
+
 IMAGE_FSTYPES = "container oci"
 inherit image
 inherit image-oci
+inherit container-nonroot-user
 
 IMAGE_FEATURES = ""
 IMAGE_LINGUAS = ""
@@ -39,8 +61,7 @@ rootfs_fixup_var_volatile () {
 }
 
 OCI_IMAGE_ENTRYPOINT = "curl"
-OCI_IMAGE_TAG = "easy"
-OCI_IMAGE_ENTRYPOINT_ARGS = "http://localhost:80"
-CONTAINER_SHELL = "busybox"
+OCI_IMAGE_TAG = "latest"
+OCI_IMAGE_ENTRYPOINT_ARGS = "--help"
 
-IMAGE_INSTALL:append = " curl"
+IMAGE_INSTALL:append = " curl ca-certificates"
