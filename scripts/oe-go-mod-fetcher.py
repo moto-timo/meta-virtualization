@@ -2125,7 +2125,36 @@ def _execute(args: argparse.Namespace) -> int:
             if disc_cache and os.path.isdir(disc_cache):
                 license_db = _resolve_license_db(args.common_license_dir)
                 if license_db:
-                    lic_results = scan_module_licenses(modules, disc_cache, license_db)
+                    # Preferred filter: modules already unpacked under
+                    # GOMODCACHE by the discovery build (`go build`). This
+                    # matches exactly what bitbake will unpack at build time.
+                    # Fallback: `go list -m all` (MVS-selected set) — includes
+                    # test/tool deps that won't be unpacked, but still
+                    # dramatically smaller than the go.sum entry list.
+                    selected_set = _get_unpacked_modules(
+                        gomodcache=args.gomodcache,
+                    )
+                    if selected_set is not None:
+                        print(f"  Filtering to GOMODCACHE-unpacked set: "
+                              f"{len(selected_set)} modules")
+                    else:
+                        selected_set = _get_mvs_selected_modules(
+                            source_dir=Path.cwd(),
+                            gomodcache=args.gomodcache,
+                        )
+                        if selected_set is None:
+                            print("  Warning: could not determine selected "
+                                  "module set; scanning all modules (may "
+                                  "produce stale entries)")
+                        else:
+                            print(f"  Filtering to MVS-selected set "
+                                  f"(GOMODCACHE empty, fell back to "
+                                  f"`go list -m all`): "
+                                  f"{len(selected_set)} modules")
+                    lic_results = scan_module_licenses(
+                        modules, disc_cache, license_db,
+                        selected_set=selected_set,
+                    )
                     if lic_results:
                         write_license_inc(output_dir, lic_results)
                     else:
@@ -4624,10 +4653,114 @@ def _find_module_zip(discovery_cache: str, module_path: str, version: str) -> Op
     return None
 
 
+def _get_unpacked_modules(gomodcache: Optional[str] = None
+                          ) -> Optional[Set[str]]:
+    """
+    Walk GOMODCACHE for unpacked module dirs and return them as the set of
+    "module_path@version" strings (in Go's filesystem encoding, which for
+    all-lowercase module paths is identical to the canonical form).
+
+    This is the most accurate signal for "what bitbake will unpack at build
+    time" — it's exactly what `go build` populated for the discovery step,
+    and the recipe's SRC_URI entries will re-unpack the same set at build
+    time. Returns None if gomodcache is not set or empty.
+
+    Why this beats `go list -m all`: the MVS-selected set includes test- and
+    tool-only deps that never reach `go build`'s import graph, so they get
+    listed in go.sum but never unpacked under pkg/mod/<module>@<version>/.
+    Walking the already-populated cache skips those entirely.
+    """
+    cache = gomodcache or os.environ.get('GOMODCACHE')
+    if not cache or not os.path.isdir(cache):
+        return None
+    base = Path(cache)
+    selected: Set[str] = set()
+    # Walk; prune $GOMODCACHE/cache/ which holds zips and metadata, not
+    # unpacked module trees.
+    for root, dirs, _files in os.walk(base):
+        if Path(root) == base and 'cache' in dirs:
+            dirs.remove('cache')
+        for d in list(dirs):
+            if '@v' in d:
+                full = Path(root) / d
+                rel = full.relative_to(base)
+                selected.add(str(rel))
+                dirs.remove(d)  # don't recurse into the module dir
+    return selected if selected else None
+
+
+def _get_mvs_selected_modules(source_dir: Optional[Path] = None,
+                              gomodcache: Optional[str] = None
+                              ) -> Optional[Set[str]]:
+    """
+    Return the set of MVS-selected modules as "module_path@version" strings,
+    using `go list -m all` from `source_dir` (defaults to CWD).
+
+    Returns None if `go` is unavailable, the source dir has no go.mod, or
+    `go list` fails for any other reason — in which case the caller should
+    fall back to scanning all modules.
+
+    Why this matters: the modules list passed to scan_module_licenses() is
+    derived from go.sum and includes every module version Go fetched for
+    hash verification, including unselected indirect-dep versions. Only the
+    MVS-selected subset is actually unpacked into pkg/mod/<module>@<version>/
+    at build time. Writing LIC_FILES_CHKSUM entries for unselected versions
+    causes do_populate_lic to fail with QA errors ("invalid file").
+    """
+    src = Path(source_dir or '.').resolve()
+    if not (src / 'go.mod').exists():
+        print(f"  Note: no go.mod at {src}, cannot determine MVS-selected set")
+        return None
+    env = os.environ.copy()
+    env['GOFLAGS'] = (env.get('GOFLAGS', '') + ' -mod=mod').strip()
+    # The bitbake do_generate_modules env sets GOPROXY=off, which prevents
+    # `go list -m all` from resolving transitive metadata and from downloading
+    # any toolchain version required by go.mod's `toolchain` directive.
+    # Override here so this helper can do its job — it does not compile or
+    # install anything, just lists modules.
+    env['GOPROXY'] = env.get('GOPROXY_REAL',
+                             'https://proxy.golang.org,direct')
+    env.pop('GOTOOLCHAIN', None)  # let it auto-resolve if go.mod needs newer
+    if gomodcache:
+        env['GOMODCACHE'] = gomodcache
+    try:
+        result = subprocess.run(
+            ['go', 'list', '-m', 'all'],
+            cwd=str(src),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=180,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        print(f"  Note: 'go list -m all' could not be executed: {exc}")
+        return None
+    if result.returncode != 0:
+        print(f"  Note: 'go list -m all' exited {result.returncode}:")
+        for line in (result.stderr or '').strip().splitlines()[:5]:
+            print(f"    {line}")
+        return None
+    selected: Set[str] = set()
+    for line in result.stdout.strip().splitlines():
+        parts = line.split()
+        # Main module is "module/path" with no version — skip
+        if len(parts) >= 2:
+            module_path, version = parts[0], parts[1]
+            selected.add(f"{module_path}@{version}")
+    return selected
+
+
 def scan_module_licenses(modules: List[Dict], discovery_cache: str,
-                         license_db: Dict[str, str]) -> Dict[str, Tuple[str, str, str]]:
+                         license_db: Dict[str, str],
+                         selected_set: Optional[Set[str]] = None
+                         ) -> Dict[str, Tuple[str, str, str]]:
     """
     Scan all modules for licenses using their discovery cache zips.
+
+    If `selected_set` is provided, modules whose "module_path@version" is
+    not in that set are skipped (they appear in go.sum but are not MVS-
+    selected, so they will not be unpacked at build time).
 
     Returns dict mapping "module_path@version" to (spdx_name, license_file, md5).
     Only the first license file per module (matching OE-core behavior).
@@ -4636,11 +4769,19 @@ def scan_module_licenses(modules: List[Dict], discovery_cache: str,
     scanned = 0
     no_zip = 0
     unknown = 0
+    skipped_unselected = 0
 
     for module in modules:
         module_path = module['module_path']
         version = module['version']
         key = f"{module_path}@{version}"
+
+        # Skip modules not selected by Go's MVS — they're in go.sum for hash
+        # verification but never unpacked into pkg/mod/<module>@<version>/,
+        # so a LIC_FILES_CHKSUM entry for them would fail do_populate_lic.
+        if selected_set is not None and key not in selected_set:
+            skipped_unselected += 1
+            continue
 
         zip_path = _find_module_zip(discovery_cache, module_path, version)
         if not zip_path:
@@ -4657,8 +4798,11 @@ def scan_module_licenses(modules: List[Dict], discovery_cache: str,
                 unknown += 1
         scanned += 1
 
-    print(f"\n  License scan: {len(results)} modules with licenses, "
-          f"{no_zip} missing zips, {unknown} unknown")
+    msg = (f"\n  License scan: {len(results)} modules with licenses, "
+           f"{no_zip} missing zips, {unknown} unknown")
+    if selected_set is not None:
+        msg += f", {skipped_unselected} skipped (not in selected set)"
+    print(msg)
     return results
 
 
