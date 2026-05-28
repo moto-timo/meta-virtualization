@@ -3,10 +3,10 @@ LICENSE = "GPL-2.0-only"
 LIC_FILES_CHKSUM = "file://COPYING;md5=b234ee4d69f5fce4486a80fdaf4a4263"
 PRIORITY = "optional"
 
-SRCREV_crun = "393509db566bedea037d1599c5a58b896f5d3b01"
-SRCREV_libocispec = "8b07b619df73a113f7721f1c7ce24f2572b04cea"
-SRCREV_ispec = "a4c6ade7bb82b316d45391f572727a63e268b252"
-SRCREV_rspec = "6f7b71c2d216403715f7364ac88dec88d9da989c"
+SRCREV_crun = "7e45b26ba9524290af70ffe645911f7e032d6913"
+SRCREV_libocispec = "8034d0ecd27f646ba3ffae5ff24db234ce062825"
+SRCREV_ispec = "13cff54902ec9ad6320cbc487a685b66fcd67171"
+SRCREV_rspec = "6999a89a76a0329f440d5740497bedb9dd431297"
 SRCREV_yajl = "f344d21280c3e4094919fd318bc5ce75da91fc06"
 
 SRCREV_FORMAT = "crun_rspec"
@@ -19,7 +19,7 @@ SRC_URI = "git://github.com/containers/crun.git;branch=main;name=crun;protocol=h
            file://0002-libocispec-fix-array-items-parsing.patch;patchdir=libocispec \
           "
 
-PV = "1.26.0+git"
+PV = "1.28.0+git"
 
 inherit autotools-brokensep pkgconfig features_check
 
@@ -44,7 +44,7 @@ PACKAGECONFIG[man] = ",,go-md2man-native"
 PACKAGECONFIG[seccomp] = "--enable-seccomp,--disable-seccomp,libseccomp"
 PACKAGECONFIG[systemd] = "--enable-systemd,--disable-systemd,systemd"
 
-DEPENDS = "m4-native"
+DEPENDS = "m4-native json-c"
 DEPENDS:append:libc-musl = " argp-standalone"
 
 do_configure:prepend () {
