@@ -4731,22 +4731,41 @@ def _get_imported_modules(source_dir: Optional[Path],
     return selected if selected else None
 
 
+def _decode_go_module_path(encoded: str) -> str:
+    """Inverse of _encode_go_module_path: '!x' (where x is a lowercase
+    letter) → 'X'. Other characters pass through unchanged."""
+    result = []
+    i = 0
+    while i < len(encoded):
+        if (encoded[i] == '!' and i + 1 < len(encoded)
+                and 'a' <= encoded[i + 1] <= 'z'):
+            result.append(encoded[i + 1].upper())
+            i += 2
+        else:
+            result.append(encoded[i])
+            i += 1
+    return ''.join(result)
+
+
 def _get_unpacked_modules(gomodcache: Optional[str] = None
                           ) -> Optional[Set[str]]:
     """
     Walk GOMODCACHE for unpacked module dirs and return them as the set of
-    "module_path@version" strings (in Go's filesystem encoding, which for
-    all-lowercase module paths is identical to the canonical form).
+    "module_path@version" strings in **canonical** form (with uppercase
+    letters in the path, matching what `go list` produces and what
+    modules.json contains).
+
+    The on-disk layout uses Go's filesystem-safe encoding ('A-Z' → '!a-z')
+    so paths like `github.com/HdrHistogram/...` are stored at
+    `github.com/!hdr!histogram/...`. We decode back to canonical on read so
+    set membership against canonical-keyed modules.json entries works
+    uniformly. write_license_inc re-encodes when constructing the
+    filesystem path for LIC_FILES_CHKSUM.
 
     This is the most accurate signal for "what bitbake will unpack at build
     time" — it's exactly what `go build` populated for the discovery step,
     and the recipe's SRC_URI entries will re-unpack the same set at build
     time. Returns None if gomodcache is not set or empty.
-
-    Why this beats `go list -m all`: the MVS-selected set includes test- and
-    tool-only deps that never reach `go build`'s import graph, so they get
-    listed in go.sum but never unpacked under pkg/mod/<module>@<version>/.
-    Walking the already-populated cache skips those entirely.
     """
     cache = gomodcache or os.environ.get('GOMODCACHE')
     if not cache or not os.path.isdir(cache):
@@ -4761,8 +4780,16 @@ def _get_unpacked_modules(gomodcache: Optional[str] = None
         for d in list(dirs):
             if '@v' in d:
                 full = Path(root) / d
-                rel = full.relative_to(base)
-                selected.add(str(rel))
+                rel = str(full.relative_to(base))
+                # Decode FS-encoded path back to canonical. Only the
+                # path-before-@version uses the encoding; the version
+                # itself is left alone.
+                if '@' in rel:
+                    mpath, _, mver = rel.partition('@')
+                    rel = f"{_decode_go_module_path(mpath)}@{mver}"
+                else:
+                    rel = _decode_go_module_path(rel)
+                selected.add(rel)
                 dirs.remove(d)  # don't recurse into the module dir
     return selected if selected else None
 
@@ -4894,6 +4921,25 @@ def _tidy_licenses(licenses: Set[str]) -> List[str]:
     return sorted(licenses - {'Unknown'}, key=str.casefold)
 
 
+def _encode_go_module_path(module_path: str) -> str:
+    """
+    Encode a Go module path the way Go's module cache stores it on disk.
+
+    Go's `golang.org/x/mod/module.EscapePath` replaces every ASCII uppercase
+    letter with '!' followed by its lowercase counterpart, to avoid clashes
+    on case-insensitive filesystems:
+
+        github.com/HdrHistogram/hdrhistogram-go
+          → github.com/!hdr!histogram/hdrhistogram-go
+
+    bitbake's do_populate_lic walks pkg/mod/<encoded-path>@<version>/ at
+    build time, so LIC_FILES_CHKSUM entries must use the encoded form or
+    they fail the "invalid file" QA check.
+    """
+    return ''.join('!' + c.lower() if 'A' <= c <= 'Z' else c
+                   for c in module_path)
+
+
 def write_license_inc(output_dir: Path, license_results: Dict[str, Tuple[str, str, str]]) -> Path:
     """
     Write go-mod-licenses.inc with LICENSE and LIC_FILES_CHKSUM.
@@ -4912,8 +4958,16 @@ def write_license_inc(output_dir: Path, license_results: Dict[str, Tuple[str, st
 
     for mod_ver, (spdx, lic_file, md5) in license_results.items():
         licenses.add(spdx)
+        # Encode the module-path portion of mod_ver — bitbake unpacks Go
+        # modules using Go's filesystem-safe encoding (uppercase → !lower).
+        # Version (after @) is left unchanged.
+        if '@' in mod_ver:
+            mpath, _, mver = mod_ver.partition('@')
+            encoded_mod_ver = f"{_encode_go_module_path(mpath)}@{mver}"
+        else:
+            encoded_mod_ver = _encode_go_module_path(mod_ver)
         # Build path matching OE-core format: pkg/mod/<module@version>/<file>
-        lic_path = f"pkg/mod/{mod_ver}/{lic_file}"
+        lic_path = f"pkg/mod/{encoded_mod_ver}/{lic_file}"
         encoded_spdx = urllib.parse.quote_plus(spdx)
         lic_entries.append(f"file://{lic_path};md5={md5};spdx={encoded_spdx}")
 
