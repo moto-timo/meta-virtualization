@@ -6,6 +6,8 @@
 LICENSE += "& Apache-2.0 & MIT"
 
 LIC_FILES_CHKSUM += "\
+    file://pkg/mod/github.com/!l!i!n!b!i!t/golinstor@v0.60.0/LICENSE;md5=e3fc50a88d0a364313df4b21ef20c29e;spdx=Apache-2.0 \
+    file://pkg/mod/github.com/!rican7/retry@v0.3.1/LICENSE;md5=6421d9994f58f630cd4dd33e88991ccc;spdx=MIT \
     file://pkg/mod/github.com/adhocore/gronx@v1.19.6/LICENSE;md5=cf49f0d7d5c34b282f67b518e2e84302;spdx=MIT \
     file://pkg/mod/github.com/apex/log@v1.9.0/LICENSE;md5=64ecc9f71f8ed64bae9ff7f7101a4dd7;spdx=MIT \
     file://pkg/mod/github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream@v1.7.10/LICENSE.txt;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
