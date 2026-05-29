@@ -6,15 +6,14 @@ inherit meson pkgconfig systemd features_check
 
 SRC_URI = " \
     https://linuxcontainers.org/downloads/lxcfs/lxcfs-${PV}.tar.gz \
-    file://0001-bindings-fix-build-with-newer-linux-libc-headers.patch \
     file://0001-meson.build-force-pid-open-send_signal-detection.patch \
 "
 
 LIC_FILES_CHKSUM = "file://COPYING;md5=29ae50a788f33f663405488bc61eecb1"
-SRC_URI[sha256sum] = "386339ba4cde289b0f6df4fe7a614caa1e45dd91bc0200b4aff6c51bf9d5ef9e"
+SRC_URI[sha256sum] = "89a5ac0e98cfae6aad26d00e0e977affe810865ebccd4c4cf9422f980ade5624"
 
-DEPENDS += "fuse python3-jinja2-native help2man-native systemd"
-RDEPENDS:${PN} += "fuse"
+DEPENDS += "fuse3 python3-jinja2-native help2man-native systemd"
+RDEPENDS:${PN} += "fuse3"
 
 FILES:${PN} += "${datadir}/lxc/config/common.conf.d/*"
 
