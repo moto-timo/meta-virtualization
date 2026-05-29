@@ -17,6 +17,22 @@ LIC_FILES_CHKSUM += "\
     file://pkg/mod/cuelabs.dev/go/oci/ociregistry@v0.0.0-20251212221603-3adeb8663819/LICENSE;md5=175792518e4ac015ab6696d16c4f607e;spdx=Apache-2.0 \
     file://pkg/mod/cuelang.org/go@v0.16.1/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57;spdx=Apache-2.0 \
     file://pkg/mod/filippo.io/edwards25519@v1.2.0/LICENSE;md5=5d4950ecb7b26d2c5e4e7b4e0dd74707;spdx=Unknown \
+    file://pkg/mod/github.com/!aliyun!container!service/ack-ram-tool/pkg/credentials/provider@v0.14.0/LICENSE;md5=86d3f3a95c324c9479bd8986968f4327;spdx=Apache-2.0 \
+    file://pkg/mod/github.com/!azure!a!d/microsoft-authentication-library-for-go@v1.7.1/LICENSE;md5=e74f78882cab57fd1cc4c5482b9a214a;spdx=Unknown \
+    file://pkg/mod/github.com/!azure/azure-sdk-for-go/sdk/azcore@v1.21.0/LICENSE.txt;md5=a93cb0863fda8e7f177e09f6943951b4;spdx=Unknown \
+    file://pkg/mod/github.com/!azure/azure-sdk-for-go/sdk/azidentity@v1.13.1/LICENSE.txt;md5=a93cb0863fda8e7f177e09f6943951b4;spdx=Unknown \
+    file://pkg/mod/github.com/!azure/azure-sdk-for-go/sdk/internal@v1.12.0/LICENSE.txt;md5=a93cb0863fda8e7f177e09f6943951b4;spdx=Unknown \
+    file://pkg/mod/github.com/!azure/azure-sdk-for-go/sdk/security/keyvault/azkeys@v1.4.0/LICENSE.txt;md5=261d8686a7cf1ce9570cdc99746659f8;spdx=Unknown \
+    file://pkg/mod/github.com/!azure/azure-sdk-for-go/sdk/security/keyvault/internal@v1.2.0/LICENSE.txt;md5=261d8686a7cf1ce9570cdc99746659f8;spdx=Unknown \
+    file://pkg/mod/github.com/!azure/azure-sdk-for-go@v68.0.0+incompatible/LICENSE.txt;md5=4f7454c9bcbb0acee6d9a971001befe2;spdx=MIT \
+    file://pkg/mod/github.com/!azure/go-autorest/autorest/adal@v0.9.23/LICENSE;md5=a250e5ac3848f2acadb5adcb9555c18b;spdx=Unknown \
+    file://pkg/mod/github.com/!azure/go-autorest/autorest/azure/auth@v0.5.12/LICENSE;md5=a250e5ac3848f2acadb5adcb9555c18b;spdx=Unknown \
+    file://pkg/mod/github.com/!azure/go-autorest/autorest/azure/cli@v0.4.6/LICENSE;md5=a250e5ac3848f2acadb5adcb9555c18b;spdx=Unknown \
+    file://pkg/mod/github.com/!azure/go-autorest/autorest/date@v0.3.0/LICENSE;md5=a250e5ac3848f2acadb5adcb9555c18b;spdx=Unknown \
+    file://pkg/mod/github.com/!azure/go-autorest/autorest@v0.11.29/LICENSE;md5=a250e5ac3848f2acadb5adcb9555c18b;spdx=Unknown \
+    file://pkg/mod/github.com/!azure/go-autorest/logger@v0.2.1/LICENSE;md5=a250e5ac3848f2acadb5adcb9555c18b;spdx=Unknown \
+    file://pkg/mod/github.com/!azure/go-autorest/tracing@v0.6.0/LICENSE;md5=a250e5ac3848f2acadb5adcb9555c18b;spdx=Unknown \
+    file://pkg/mod/github.com/!azure/go-autorest@v14.2.0+incompatible/LICENSE;md5=a250e5ac3848f2acadb5adcb9555c18b;spdx=Unknown \
     file://pkg/mod/github.com/agnivade/levenshtein@v1.2.1/License.txt;md5=911630ea868cb9d6ca549532110fd8fd;spdx=MIT \
     file://pkg/mod/github.com/alibabacloud-go/alibabacloud-gateway-spi@v0.0.4/LICENSE;md5=815228b833e1826a08c7cef5b6f00363;spdx=Apache-2.0 \
     file://pkg/mod/github.com/alibabacloud-go/cr-20181201@v1.0.10/LICENSE;md5=815228b833e1826a08c7cef5b6f00363;spdx=Apache-2.0 \
