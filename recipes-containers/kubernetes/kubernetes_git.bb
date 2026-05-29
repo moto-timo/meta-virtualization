@@ -5,25 +5,25 @@ applications across multiple hosts, providing basic mechanisms for deployment, \
 maintenance, and scaling of applications. \
 "
 
-PV = "1.35.2+git"
-CVE_VERSION = "1.35.2"
-SRCREV_kubernetes = "b6f632ba56e937dad484d5ac99d5ff51e7073dfe"
-SRCREV_kubernetes-release = "21382abdbfa8e6a43fd417306fa649cb651cc06e"
+PV = "1.36.1+git"
+CVE_VERSION = "1.36.1"
+SRCREV_kubernetes = "102c4a4f87ba0a26c4a4f1dd8d1d3d07c83697e5"
+SRCREV_kubernetes-release = "9e3980c6c7b5da3ec3efa0e8b3bdc77ab50c7a0c"
 PE = "1"
 
 BBCLASSEXTEND = "devupstream:target"
 LIC_FILES_CHKSUM:class-devupstream = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 DEFAULT_PREFERENCE:class-devupstream = "-1"
-SRC_URI:class-devupstream = "git://github.com/kubernetes/kubernetes.git;branch=release-1.35;name=kubernetes;protocol=https \
+SRC_URI:class-devupstream = "git://github.com/kubernetes/kubernetes.git;branch=release-1.36;name=kubernetes;protocol=https \
                              git://github.com/kubernetes/release;branch=master;name=kubernetes-release;destsuffix=${BB_GIT_DEFAULT_DESTSUFFIX}/release;protocol=https \
                             "
-SRCREV_kubernetes:class-devupstream = "b6f632ba56e937dad484d5ac99d5ff51e7073dfe"
-SRCREV_kubernetes-release:class-devupstream = "21382abdbfa8e6a43fd417306fa649cb651cc06e"
-PV:class-devupstream = "1.35.2+git${SRCREV_kubernetes}"
+SRCREV_kubernetes:class-devupstream = "102c4a4f87ba0a26c4a4f1dd8d1d3d07c83697e5"
+SRCREV_kubernetes-release:class-devupstream = "9e3980c6c7b5da3ec3efa0e8b3bdc77ab50c7a0c"
+PV:class-devupstream = "1.36.1+git${SRCREV_kubernetes}"
 
 SRCREV_FORMAT ?= "kubernetes_release"
 
-SRC_URI = "git://github.com/kubernetes/kubernetes.git;branch=release-1.35;name=kubernetes;protocol=https;destsuffix=${BB_GIT_DEFAULT_DESTSUFFIX}/src/github.com/kubernetes/kubernetes \
+SRC_URI = "git://github.com/kubernetes/kubernetes.git;branch=release-1.36;name=kubernetes;protocol=https;destsuffix=${BB_GIT_DEFAULT_DESTSUFFIX}/src/github.com/kubernetes/kubernetes \
            git://github.com/kubernetes/release;branch=master;name=kubernetes-release;destsuffix=${BB_GIT_DEFAULT_DESTSUFFIX}/release;protocol=https"
 
 SRC_URI:append = " \
@@ -110,8 +110,11 @@ do_install() {
 
     install -m 755 -D ${S}/_output/local/bin/${TARGET_GOOS}/${TARGET_GOARCH}/* ${D}/${bindir}
 
-    install -m 0644 ${UNPACKDIR}/${BB_GIT_DEFAULT_DESTSUFFIX}/release/cmd/kubepkg/templates/latest/deb/kubelet/lib/systemd/system/kubelet.service ${D}${systemd_unitdir}/system/
-    install -m 0644 ${UNPACKDIR}/${BB_GIT_DEFAULT_DESTSUFFIX}/release/cmd/kubepkg/templates/latest/deb/kubeadm/10-kubeadm.conf  ${D}${systemd_unitdir}/system/kubelet.service.d/
+    # NOTE: kubernetes-release reorganized the templates tree: 'kubepkg' was
+    # removed and 'krel' (the release tool) holds the templates now, in a
+    # flatter layout without the deb/<pkg>/lib/systemd/system/ wrapping.
+    install -m 0644 ${UNPACKDIR}/${BB_GIT_DEFAULT_DESTSUFFIX}/release/cmd/krel/templates/latest/kubelet/kubelet.service ${D}${systemd_unitdir}/system/
+    install -m 0644 ${UNPACKDIR}/${BB_GIT_DEFAULT_DESTSUFFIX}/release/cmd/krel/templates/latest/kubeadm/10-kubeadm.conf ${D}${systemd_unitdir}/system/kubelet.service.d/
 
     if ${@bb.utils.contains('DISTRO_FEATURES','systemd','true','false',d)}; then
 	install -d "${D}${BIN_PREFIX}${base_bindir}"
