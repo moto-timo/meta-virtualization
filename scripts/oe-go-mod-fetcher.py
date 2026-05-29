@@ -2125,19 +2125,39 @@ def _execute(args: argparse.Namespace) -> int:
             if disc_cache and os.path.isdir(disc_cache):
                 license_db = _resolve_license_db(args.common_license_dir)
                 if license_db:
-                    # Preferred filter: modules already unpacked under
-                    # GOMODCACHE by the discovery build (`go build`). This
-                    # matches exactly what bitbake will unpack at build time.
-                    # Fallback: `go list -m all` (MVS-selected set) — includes
-                    # test/tool deps that won't be unpacked, but still
-                    # dramatically smaller than the go.sum entry list.
-                    selected_set = _get_unpacked_modules(
+                    # Filter tier order (most accurate first):
+                    #   1. --build-targets: `go list -deps` on the recipe's
+                    #      actual build targets. Needed when do_compile builds
+                    #      multiple binaries spanning a wider import graph
+                    #      than the discovery's single BUILD_TARGET.
+                    #   2. GOMODCACHE walk: modules unpacked by `go build` of
+                    #      the discovery's BUILD_TARGET. Right when the
+                    #      discovery target's import set matches the recipe's.
+                    #   3. `go list -m all` (MVS-selected): full module graph
+                    #      including test/tool deps. Too wide for some recipes
+                    #      but better than no filter.
+                    selected_set = _get_imported_modules(
+                        source_dir=Path.cwd(),
+                        build_targets=args.build_targets,
                         gomodcache=args.gomodcache,
                     )
                     if selected_set is not None:
-                        print(f"  Filtering to GOMODCACHE-unpacked set: "
+                        print(f"  Filtering to `go list -deps` set "
+                              f"(from --build-targets): "
                               f"{len(selected_set)} modules")
                     else:
+                        selected_set = _get_unpacked_modules(
+                            gomodcache=args.gomodcache,
+                        )
+                    if selected_set is None:
+                        # both build-targets and GOMODCACHE walk gave nothing
+                        pass  # fall through to MVS
+                    elif args.build_targets is None:
+                        # selected_set is from GOMODCACHE walk
+                        print(f"  Filtering to GOMODCACHE-unpacked set: "
+                              f"{len(selected_set)} modules")
+
+                    if selected_set is None:
                         selected_set = _get_mvs_selected_modules(
                             source_dir=Path.cwd(),
                             gomodcache=args.gomodcache,
@@ -4653,6 +4673,64 @@ def _find_module_zip(discovery_cache: str, module_path: str, version: str) -> Op
     return None
 
 
+def _get_imported_modules(source_dir: Optional[Path],
+                          build_targets: Optional[List[str]],
+                          gomodcache: Optional[str] = None
+                          ) -> Optional[Set[str]]:
+    """
+    Run `go list -deps` on the given build targets and return the set of
+    "module_path@version" strings that those targets actually import.
+
+    This is the most accurate filter when the recipe builds multiple binaries
+    that span a wider import graph than the discovery step's single
+    BUILD_TARGET. The discovery's GOMODCACHE walk only sees what
+    `go build <BUILD_TARGET>` populated, which can be a strict subset of
+    what the recipe's `do_compile` will actually unpack at build time.
+
+    Returns None if `go` is unavailable, source dir has no go.mod,
+    build_targets is empty, or `go list` fails.
+    """
+    if not build_targets:
+        return None
+    src = Path(source_dir or '.').resolve()
+    if not (src / 'go.mod').exists():
+        return None
+
+    env = os.environ.copy()
+    env['GOFLAGS'] = (env.get('GOFLAGS', '') + ' -mod=mod').strip()
+    # Same rationale as _get_mvs_selected_modules: do_generate_modules sets
+    # GOPROXY=off, but we need it on so go-list can resolve metadata and
+    # download a newer toolchain if go.mod requires it.
+    env['GOPROXY'] = env.get('GOPROXY_REAL',
+                             'https://proxy.golang.org,direct')
+    env.pop('GOTOOLCHAIN', None)
+    if gomodcache:
+        env['GOMODCACHE'] = gomodcache
+
+    cmd = ['go', 'list', '-deps',
+           '-f', '{{if .Module}}{{.Module.Path}}@{{.Module.Version}}{{end}}']
+    cmd.extend(build_targets)
+    try:
+        result = subprocess.run(cmd, cwd=str(src), env=env,
+                                capture_output=True, text=True,
+                                timeout=300, check=False)
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        print(f"  Note: 'go list -deps' could not be executed: {exc}")
+        return None
+    if result.returncode != 0:
+        print(f"  Note: 'go list -deps' exited {result.returncode}:")
+        for line in (result.stderr or '').strip().splitlines()[:5]:
+            print(f"    {line}")
+        return None
+
+    selected: Set[str] = set()
+    for line in result.stdout.strip().splitlines():
+        line = line.strip()
+        if line:
+            selected.add(line)
+    return selected if selected else None
+
+
 def _get_unpacked_modules(gomodcache: Optional[str] = None
                           ) -> Optional[Set[str]]:
     """
@@ -4990,6 +5068,18 @@ Examples:
         "--clean-gomodcache",
         action="store_true",
         help="Clean stale .info files in GOMODCACHE that lack VCS metadata (fixes 'module lookup disabled' errors)"
+    )
+
+    parser.add_argument(
+        "--build-target",
+        action='append',
+        default=None,
+        dest='build_targets',
+        help="Go build target used by the recipe's do_compile (e.g. './cmd/foo'). "
+             "Can be repeated. When set, the license scan filter is derived from "
+             "`go list -deps` on these targets — the most accurate signal for "
+             "'what bitbake will unpack at build time'. Takes precedence over the "
+             "GOMODCACHE walk."
     )
 
     parser.add_argument(
