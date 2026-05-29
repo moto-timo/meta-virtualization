@@ -36,7 +36,7 @@ RDEPENDS:${PN}-ptest += "file make gmp nettle gnutls bash libgcc"
 
 RDEPENDS:${PN}-networking += "iptables"
 
-SRC_URI = "git://github.com/lxc/lxc.git;branch=stable-6.0;protocol=https \
+SRC_URI = "git://github.com/lxc/lxc.git;branch=main;protocol=https \
 	file://lxc-1.0.0-disable-udhcp-from-busybox-template.patch \
 	file://run-ptest \
 	file://templates-actually-create-DOWNLOAD_TEMP-directory.patch \
@@ -49,8 +49,8 @@ SRC_URI = "git://github.com/lxc/lxc.git;branch=stable-6.0;protocol=https \
 	file://lxc-net \
 	"
 
-SRCREV = "2597434ae2472114c70ad2bdf4ae5580c9e22717"
-PV = "6.0.6"
+SRCREV = "e4415af07e3ec291205bc828e2b4e8141f91a499"
+PV = "7.0.0"
 
 # Let's not configure for the host distro.
 #
