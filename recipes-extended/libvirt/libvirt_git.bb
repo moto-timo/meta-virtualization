@@ -34,16 +34,15 @@ PV = "v${LIBVIRT_VERSION}+git"
 SRC_URI = "gitsm://github.com/libvirt/libvirt.git;name=libvirt;protocol=https;branch=master \
            file://libvirtd.sh \
            file://libvirtd.conf \
+           file://run-ptest \
            file://dnsmasq.conf \
            file://hook_support.py \
            file://gnutls-helper.py;subdir=${BP} \
            file://libvirt-qemu.conf \
            file://0001-prevent-gendispatch.pl-generating-build-path-in-code.patch \
-           file://0001-messon.build-remove-build-path-information-to-avoid-.patch \
-           file://0001-tests-meson-clear-absolute-directory-paths.patch \
           "
 
-inherit meson gettext update-rc.d pkgconfig systemd useradd perlnative
+inherit meson gettext update-rc.d pkgconfig systemd useradd perlnative ptest
 USERADD_PACKAGES = "${PN}"
 GROUPADD_PARAM:${PN} = "-r qemu; -r kvm; -r libvirt; -r virtlogin"
 USERADD_PARAM:${PN} = "-r -g qemu -G kvm qemu"
@@ -186,6 +185,46 @@ CVE_STATUS[CVE-2023-3750] = "fixed-version: Fixed in 9.6.0, NVD tracks this as v
 
 # Enable the Python tool support
 require libvirt-python.inc
+
+do_configure:prepend() {
+      sed -i \
+        -e "s|meson.current_build_dir()|'${PTEST_PATH}/tests'|g" \
+        -e "s|meson.project_build_root()|'${PTEST_PATH}'|g" \
+        -e "s|meson.current_source_dir()|'${PTEST_PATH}/datas/tests'|g" \
+        -e "s|meson.project_source_root()|'${PTEST_PATH}/datas'|g" \
+        ${S}/tests/meson.build ${S}/scripts/rpcgen/tests/meson.build ${S}/tests/schemas/meson.build
+}
+
+# Guard abs_top_builddir/abs_top_srcdir defines with #ifndef to avoid
+# -Werror redefinition conflict when tests pass them via -D compile flags.
+do_configure:append() {
+      sed -i '/^#define abs_top_builddir/c\#ifndef abs_top_builddir\n#define abs_top_builddir " "\n#endif' ${B}/meson-config.h
+      sed -i '/^#define abs_top_srcdir/c\#ifndef abs_top_srcdir\n#define abs_top_srcdir " "\n#endif' ${B}/meson-config.h
+}
+
+
+do_install_ptest() {
+       install -d ${D}${PTEST_PATH}/tests
+       install -d ${D}${PTEST_PATH}/datas/tests
+        # The virshtest expects virsh at ${PTEST_PATH}/tests/tools/virsh, but it is
+        # installed to /usr/bin/virsh by libvirt-virsh. Create a symlink to satisfy
+        # the test's expected path.
+       install -d ${D}${PTEST_PATH}/tools 
+       ln -sf /usr/bin/virsh ${D}${PTEST_PATH}/tools/virsh 
+       find ${B}/tests/  -type f -executable -print -maxdepth 1 | xargs -i cp {} ${D}${PTEST_PATH}/tests -rf
+       cd ${S}/tests && find . -mindepth 1 -maxdepth 1 -type d | xargs -i cp {} ${D}${PTEST_PATH}/datas/tests -a
+       install -m 0755 ${B}/scripts/rpcgen/tests/test_demo ${D}${PTEST_PATH}/tests
+       install -m 0644 ${S}/scripts/rpcgen/tests/*.bin ${D}${PTEST_PATH}/datas/tests
+       install -D -m 0644 -t ${D}${PTEST_PATH}/datas/examples/xml/test/  ${S}/examples/xml/test/*.xml
+       install -D -m 0644 -t ${D}${PTEST_PATH}/datas/examples/xml/storage/ ${S}/examples/xml/storage/*.xml
+       install -D -m 0644 -t ${D}${PTEST_PATH}/datas/src/conf/schemas/ ${S}/src/conf/schemas/*.rng
+       install -D -m 0644 -t ${D}${PTEST_PATH}/datas/src/nwfilter/xml/ ${S}/src/nwfilter/xml/*.xml
+       install -D -m 0644 -t ${D}${PTEST_PATH}/tests/schemas/ ${B}/tests/schemas/*.rng
+       install -m 0644 ${S}/tests/openvzutilstest.conf ${D}${PTEST_PATH}/datas/tests
+       install -d ${D}${PTEST_PATH}/datas/src/network
+}
+
+RDEPENDS:${PN}-ptest += " ${PN}-virsh"
 
 do_compile() {
 	cd ${B}/src
