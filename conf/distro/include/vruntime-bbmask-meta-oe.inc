@@ -43,6 +43,10 @@ BBMASK += "meta-webserver/"
 # (BBFILE_PATTERN_IGNORE_EMPTY) because BitBake checks the base datastore,
 # not per-multiconfig datastores.
 
+# vcontainer-bbmask.inc allows meta-webserver/recipes-httpd/nginx, so we
+# need to move this ignore here.
+BBFILE_PATTERN_IGNORE_EMPTY_webserver = "1"
+
 # ---------------------------------------------------------------------------
 # Orphaned bbappends in other layers (base recipes masked above)
 # ---------------------------------------------------------------------------
