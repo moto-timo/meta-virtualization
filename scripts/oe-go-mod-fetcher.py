@@ -2754,13 +2754,19 @@ def resolve_pseudo_version_commit(vcs_url: str, timestamp_str: str, short_commit
                     # Fetch failed, try to use existing clone anyway
                     pass
             else:
-                # Clone repository (bare clone for efficiency)
+                # Clone repository as a mirror so `git fetch --all` can later
+                # refresh refs. A plain `git clone --bare` does NOT install a
+                # remote.origin.fetch refspec, so subsequent `git fetch --all`
+                # exits 0 but updates nothing — the cache stays frozen at the
+                # initial clone, and pseudo-version expansion silently fails
+                # for any commit newer than the first clone time. --mirror
+                # sets up the refspec `+refs/*:refs/*` so fetches stay current.
                 if clone_dir.exists():
                     shutil.rmtree(clone_dir)
                 clone_dir.mkdir(parents=True, exist_ok=True)
 
                 subprocess.run(
-                    ['git', 'clone', '--bare', '--quiet', try_url, str(clone_dir)],
+                    ['git', 'clone', '--mirror', '--quiet', try_url, str(clone_dir)],
                     capture_output=True,
                     check=True,
                     timeout=300,  # 5 minute timeout
@@ -4418,6 +4424,22 @@ def load_discovered_modules(discovered_modules_path: Path) -> Optional[List[Dict
                     failed += 1
 
             print(f"  Expanded {expanded} short hashes, {failed} failed                    ")
+
+            # A 12-char vcs_hash left in any module will trip bitbake's git
+            # fetcher (sha1_re requires 40 chars) and trigger a confusing
+            # "Unable to resolve" parse error. Surface this even outside
+            # VERBOSE_MODE so the user catches it before the build fails.
+            if failed:
+                still_short = [m for m in short_hash_modules
+                               if len(m.get('vcs_hash', '')) != 40]
+                if still_short:
+                    print(f"\n⚠️  {len(still_short)} module(s) still have 12-char hashes after expansion:")
+                    for m in still_short[:10]:
+                        print(f"    - {m['module_path']}@{m.get('version', '')} ({m['vcs_hash']})")
+                    if len(still_short) > 10:
+                        print(f"    ... and {len(still_short) - 10} more")
+                    print(f"    These will cause bitbake parse errors. Common cause: a stale")
+                    print(f"    clone_cache_dir entry. Try: rm -rf {CLONE_CACHE_DIR}")
 
         # Filter out modules with empty vcs_hash - these are typically pre-Go 1.18
         # modules lacking Origin metadata (e.g. pre-release pseudo-versions) that
