@@ -7,7 +7,7 @@ inherit python_setuptools_build_meta
 PV = "1.5.0+git"
 SRC_URI = "git://github.com/containers/podman-compose.git;branch=main;protocol=https"
 
-SRCREV = "f7eeda1a3db10952424af6a5b0501c269ebe3f0d"
+SRCREV = "71e0fbd392dc5df2506013c5f851657ca139e267"
 
 DEPENDS += "python3-pyyaml-native"
 
