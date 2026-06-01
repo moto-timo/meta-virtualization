@@ -18,7 +18,7 @@ SRC_URI = "gitsm://github.com/ceph/ceph.git;protocol=https;branch=main \
            file://0001-rgw-setup.py-allow-incompatible-pointer-types.patch \
 	   "
 
-SRCREV = "c1f7de9e4e6e92622aaff0d2173c65f83bb56e2e"
+SRCREV = "6830c0390c2bcbced5d4397d6581a02663bb5f0a"
 PV = "20.3.0+git"
 
 DEPENDS = "boost bzip2 curl cryptsetup expat gperf-native \
