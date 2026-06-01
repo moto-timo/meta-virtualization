@@ -11,7 +11,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=4fbd65380cdd255951079008b364516c"
 DEPENDS += "cockpit"
 
 SRC_URI = "https://github.com/cockpit-project/cockpit-machines/releases/download/${PV}/cockpit-machines-${PV}.tar.xz"
-SRC_URI[sha256sum] = "c9d80357da2bf3ecda9698f0dc6fcb46675b3b76da9150a22178071fe982fcb0"
+SRC_URI[sha256sum] = "6da42bc518aef449244a9c6783b4929859784838a142f5ec5430440ae508390e"
 
 S = "${UNPACKDIR}/${PN}"
 
