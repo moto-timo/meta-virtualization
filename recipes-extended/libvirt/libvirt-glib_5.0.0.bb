@@ -10,7 +10,7 @@ SRC_URI = " \
 	file://0001-meson.build-allow-crosscompiling-gir-and-doc.patch \
 "
 
-SRCREV = "9b26bec8828a38fcb3bc0e5f6f33b03fa99c4b68"
+SRCREV = "7202a4fa770ec6ce22b4c17cf5747b447faedeee"
 
 inherit meson pkgconfig gobject-introspection gettext vala gtk-doc
 
