@@ -51,7 +51,7 @@ SRC_URI += " \
     crate://crates.io/humantime/2.1.0 \
     crate://crates.io/is-terminal/0.4.9 \
     crate://crates.io/itoa/1.0.2 \
-    crate://crates.io/libc/0.2.155 \
+    crate://crates.io/libc/0.2.177 \
     crate://crates.io/libseccomp-sys/0.2.1 \
     crate://crates.io/linux-raw-sys/0.4.5 \
     crate://crates.io/lock_api/0.4.10 \
@@ -169,7 +169,7 @@ SRC_URI[hostname-0.3.1.sha256sum] = "3c731c3e10504cc8ed35cfe2f1db4c9274c3d35fa48
 SRC_URI[humantime-2.1.0.sha256sum] = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 SRC_URI[is-terminal-0.4.9.sha256sum] = "cb0889898416213fab133e1d33a0e5858a48177452750691bde3666d0fdbaf8b"
 SRC_URI[itoa-1.0.2.sha256sum] = "112c678d4050afce233f4f2852bb2eb519230b3cf12f33585275537d7e41578d"
-SRC_URI[libc-0.2.155.sha256sum] = "97b3888a4aecf77e811145cadf6eef5901f4782c53886191b2f693f24761847c"
+SRC_URI[libc-0.2.177.sha256sum] = "2874a2af47a2325c2001a6e6fad9b16a53b802102b528163885171cf92b15976"
 SRC_URI[libseccomp-sys-0.2.1.sha256sum] = "9a7cbbd4ad467251987c6e5b47d53b11a5a05add08f2447a9e2d70aef1e0d138"
 SRC_URI[linux-raw-sys-0.4.5.sha256sum] = "57bcfdad1b858c2db7c38303a6d2ad4dfaf5eb53dfeb0910128b2c26d6158503"
 SRC_URI[lock_api-0.4.10.sha256sum] = "c1cc9717a20b1bb222f333e6a92fd32f7d8a18ddc5a3191a11af45dcbf4dcd16"
