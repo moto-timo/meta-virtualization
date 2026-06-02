@@ -13,18 +13,18 @@ SRCNAME = "nrpe"
 SRC_URI = "https://github.com/NagiosEnterprises/nrpe/releases/download/${SRCNAME}-${PV}/${SRCNAME}-${PV}.tar.gz \
            file://check_nrpe.cfg \
            file://nagios-nrpe.service \
-           file://0001-Should-fix-235-nasty_metachars-was-not-being-returne.patch \
+           file://0001-nrpe-ssl.h-guard-ssl_verify_callback_common-declarat.patch \
 "
 
-SRC_URI[md5sum] = "37b9e23b3e8d75308f8b31f3b61ee8a4"
-SRC_URI[sha256sum] = "c5d9d7023eaa49e6fe8cf95c6d101731f07972cf0f8818fa130c171bc9eabd55"
-SRC_URI[sha1sum] = "2150e274fc7f24905c63b8a996ed7218e2967478"
-SRC_URI[sha384sum] = "0ece79fb312c8d1ee0e6bde1be499f8090a5a86cf90b0b8dcbebb95c5f8f70b2cf9ac0a4064f726bee091c4147b61d82"
-SRC_URI[sha512sum] = "4d7cf6abc974bc79df54afc42644418e3f086a279c8c17d0fd104f19e3c21c0f3dae4fb4268dd134446ff9fe505159b0446372c5cac71cfe03a97479ed41c09b"
+SRC_URI[md5sum] = "92c61b315fd7c51d3cb52b848a9a5821"
+SRC_URI[sha256sum] = "5a86dfde6b9732681abcd6ea618984f69781c294b8862a45dfc18afaca99a27a"
+SRC_URI[sha1sum] = "b8842c6f6d555deb5ec0359fd49dfcc7952085d6"
+SRC_URI[sha384sum] = "81c83ae3713d0baeef5636d7adae47c27c14eeae757e3962c579ac1486856998bc17a6e1a87aff9b290817fbb474ee09"
+SRC_URI[sha512sum] = "dc81e2104b7604e6c67a0dc73a3e6449f7e089390a807be7281492b5ab61e13347ed264292e0642798cee4bafc5978d423184e81bbe753343aaa68daea091f7e"
 
-S = "${WORKDIR}/${SRCNAME}-${PV}"
+S = "${UNPACKDIR}/${SRCNAME}-${PV}"
 
-inherit autotools-brokensep update-rc.d systemd update-alternatives
+inherit autotools-brokensep update-rc.d systemd update-alternatives pkgconfig
 
 SKIP_RECIPE[nagios-nrpe] ?= "${@bb.utils.contains('BBFILE_COLLECTIONS', 'webserver', '', 'Depends on nagios-core which depends on apache2 from meta-webserver which is not included', d)}"
 
@@ -40,16 +40,28 @@ EXTRA_OECONF += "--with-nrpe-user=${NAGIOS_USER} \
                  ac_cv_path_PERL=${bindir}/perl \
 "
 
-EXTRA_OECONF_SSL = "--with-ssl=${STAGING_DIR_HOST} \
-                    --with-ssl-inc=${STAGING_DIR_HOST}${includedir} \
-                    --with-ssl-lib=${STAGING_DIR_HOST}${libdir} \
-"
+# Don't pass --with-ssl-inc / --with-ssl-lib explicitly. When either is
+# set, configure disables pkg-config probing and falls back to a hardcoded
+# library search that bakes `-Wl,-rpath,<dir>` into LDFLAGS (configure.in
+# line: `LDFLAGS="$LDFLAGS -L$SSL_LIB_DIR -Wl,-rpath,$SSL_LIB_DIR"`).
+# With our sysroot path that lands as a recipe-sysroot RPATH in the
+# installed binaries and trips do_package_qa [rpaths] + [buildpaths].
+# An empty EXTRA_OECONF_SSL leaves PACKAGECONFIG[ssl] adding nothing to
+# OECONF; pkg-config (driven by the openssl DEPENDS) finds the library
+# cleanly via the standard --libs flow, which doesn't baked-in rpath.
+EXTRA_OECONF_SSL = ""
 
 PACKAGECONFIG[ssl] = "${EXTRA_OECONF_SSL},--disable-ssl,openssl-native openssl,"
 PACKAGECONFIG[cmdargs] = "--enable-command-args,--disable-command-args,,"
 PACKAGECONFIG[bashcomp] = "--enable-bash-command-substitution,--disable-bash-command-substitution,,"
 
-PACKAGECONFIG ??= "cmdargs bashcomp"
+# SSL enabled by default: v4.1.3 references `use_ssl` outside HAVE_SSL guards
+# in check_nrpe.c and nrpe.c, but the symbol is only defined in nrpe-ssl.c
+# which configure adds to $(SSL_OBJS) only when --enable-ssl is passed.
+# Disabling SSL would also expose the unguarded X509_STORE_CTX declaration
+# in include/nrpe-ssl.h (handled by 0001-nrpe-ssl.h-guard-* in case the
+# user opts out).
+PACKAGECONFIG ??= "cmdargs bashcomp ssl"
 
 do_configure() {
     oe_runconf || die "make failed"
