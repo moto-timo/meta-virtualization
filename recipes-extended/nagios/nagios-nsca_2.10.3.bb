@@ -6,19 +6,21 @@ SECTION = "console/network"
 PRIORITY = "optional"
 LICENSE = "GPL-2.0-only"
 
-LIC_FILES_CHKSUM = "file://src/nsca.c;beginline=1;endline=16;md5=dd7a195cc7d8a3ebcfabd65360d0cab4"
+LIC_FILES_CHKSUM = "file://src/nsca.c;beginline=1;endline=16;md5=c94838c8194765df77dbf93c7e10b5a2"
 
 SRCNAME = "nsca"
 
-SRC_URI = "http://prdownloads.sourceforge.net/sourceforge/nagios/${SRCNAME}-${PV}.tar.gz \
+# Upstream development and release artifacts moved to GitHub; the historical
+# prdownloads.sourceforge.net path returns 404 for anything past 2.9.2.
+SRC_URI = "https://github.com/NagiosEnterprises/${SRCNAME}/releases/download/${SRCNAME}-${PV}/${SRCNAME}-${PV}.tar.gz \
            file://init-script.in \
            file://nagios-nsca.service \
 "
 
-SRC_URI[md5sum] = "43f638c51367a3170476ed106fbb4858"
-SRC_URI[sha256sum] = "96eb04ef695873ce462e3f8db08e8a49456ff9595d11acf70a3dd8a2c4af3b5e"
+SRC_URI[md5sum] = "25048d91910a45213c0f0ea5a8da11c9"
+SRC_URI[sha256sum] = "0b36d5c10936f98d278b66c682af95b8e227c5942ad725c4a1949945296f6877"
 
-S = "${WORKDIR}/${SRCNAME}-${PV}"
+S = "${UNPACKDIR}/${SRCNAME}-${PV}"
 
 inherit update-rc.d autotools-brokensep systemd dos2unix
 
