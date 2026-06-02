@@ -7,8 +7,8 @@ LIC_FILES_CHKSUM = " \
     file://LICENSE-BSD-3-Clause;md5=2489db1359f496fff34bd393df63947e \
 "
 
-SRC_URI += "crate://crates.io/vhost-device-vsock/0.1.0"
-SRC_URI[vhost-device-vsock-0.1.0.sha256sum] = "b1b22596359e46c3986574707a0f616c6e200a6751adeaa353db8cfdbc0472f6"
+SRC_URI += "crate://crates.io/vhost-device-vsock/0.3.0"
+SRC_URI[vhost-device-vsock-0.3.0.sha256sum] = "52ce95d81af89ad693d067c650e42df0f217addfbc96cc4820f7c62eb4a28b13"
 
 inherit cargo
 inherit cargo-update-recipe-crates
