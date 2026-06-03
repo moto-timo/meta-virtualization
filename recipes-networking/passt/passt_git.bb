@@ -15,8 +15,8 @@ EXTRA_OEMAKE += "\
 
 SRC_URI = "git://passt.top/passt;branch=master"
 
-PV = "2026_01_20+git"
-SRCREV = "bc872d91765dfd6ff34b0e9a34bce410fac1cef3"
+PV = "2026_05_26+git"
+SRCREV = "4b2823784aab04a70dfc295b16fd6f0592955790"
 
 do_configure () {
 	:
