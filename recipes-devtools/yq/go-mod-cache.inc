@@ -9,6 +9,7 @@ inherit go-mod-vcs
 # Module metadata for cache building (one module per line)
 GO_MODULE_CACHE_DATA = '[\
 {"module":"github.com/zclconf/go-cty-debug","version":"v0.0.0-20240509010212-0d6042c53940","vcs_hash":"97ae88860aa1ae2fdfafb1bdd81cd1a8689270c32cc5b3a78291dae72fff3e98","timestamp":"2024-05-09T01:02:12Z","subdir":"","vcs_ref":""},\
+{"module":"github.com/zclconf/go-cty","version":"v1.18.1","vcs_hash":"81c2246f83ea9a73b53db01bad550d893557930bfd99c6c5b02c16b7b73fb81b","timestamp":"2026-04-16T23:17:50Z","subdir":"","vcs_ref":"refs/tags/v1.18.1"},\
 {"module":"github.com/zclconf/go-cty","version":"v1.18.0","vcs_hash":"8e6ef2edda80cf843a2a1c568eb701e56185f7ab76c293fa8adef7a5cad714c6","timestamp":"2026-02-23T23:06:51Z","subdir":"","vcs_ref":"refs/tags/v1.18.0"},\
 {"module":"github.com/vmihailenco/msgpack/v5","version":"v5.3.5","vcs_hash":"02a4e9fd526e13beccb6c173e6c8238f8f47b51174abd08bdbce44868d7dca0b","timestamp":"2021-10-22T10:21:31Z","subdir":"v5","vcs_ref":"refs/tags/v5.3.5"},\
 {"module":"github.com/vmihailenco/tagparser/v2","version":"v2.0.0","vcs_hash":"d8db384ca98ad948fdee0547f574d6b990caa73543d9caca66b2a4b9b6e384a0","timestamp":"2021-02-03T10:04:46Z","subdir":"v2","vcs_ref":"refs/tags/v2.0.0"},\
@@ -16,6 +17,7 @@ GO_MODULE_CACHE_DATA = '[\
 {"module":"github.com/spf13/pflag","version":"v1.0.10","vcs_hash":"737f239b3c3bd4e75040785cfc62b8349a547b1425bba1698b712866455bce75","timestamp":"2025-09-02T06:08:29Z","subdir":"","vcs_ref":"refs/tags/v1.0.10"},\
 {"module":"github.com/spf13/pflag","version":"v1.0.9","vcs_hash":"241e9025159bbbea2f54722542a86c03ff35968a42a753a0a4e0738690720a54","timestamp":"2025-09-01T07:27:15Z","subdir":"","vcs_ref":"refs/tags/v1.0.9"},\
 {"module":"github.com/jinzhu/copier","version":"v0.4.0","vcs_hash":"3a8711e102dd27106175c00fc3ddb49a55f8519bf4275740a63f7b4bdbedc9a0","timestamp":"2023-08-09T06:33:02Z","subdir":"","vcs_ref":"refs/tags/v0.4.0"},\
+{"module":"github.com/fatih/color","version":"v1.19.0","vcs_hash":"58caff141d2948f9fe070625ca47c5aeb106aece67c3c98c8ebe2619b45ddb73","timestamp":"2026-03-20T08:53:23Z","subdir":"","vcs_ref":"refs/tags/v1.19.0"},\
 {"module":"github.com/fatih/color","version":"v1.18.0","vcs_hash":"5d3a7d46049b39f7f5f80bbbcaf1d95f84b393dcee5978948fd4ca3a5abb4461","timestamp":"2024-10-03T07:06:28Z","subdir":"","vcs_ref":"refs/tags/v1.18.0"},\
 {"module":"github.com/alecthomas/participle/v2","version":"v2.1.4","vcs_hash":"f55c25812c19a1ceb96cc3815116d27d2a1d10c417b2fa04be24934eb031ecc9","timestamp":"2025-03-24T00:45:51Z","subdir":"","vcs_ref":"refs/tags/v2.1.4"},\
 {"module":"github.com/alecthomas/assert/v2","version":"v2.11.0","vcs_hash":"ee6944d06c2169dabdfa5e3145750866c06153432d695be651bc6128312bf8c0","timestamp":"2024-09-17T06:12:02Z","subdir":"","vcs_ref":"refs/tags/v2.11.0"},\
@@ -32,14 +34,19 @@ GO_MODULE_CACHE_DATA = '[\
 {"module":"github.com/agext/levenshtein","version":"v1.2.1","vcs_hash":"2b54ef5644999bbb35e744c349fdcb01b47129a12a574ae4281f8329987f0928","timestamp":"2017-02-17T06:30:20Z","subdir":"","vcs_ref":"refs/tags/v1.2.1"},\
 {"module":"github.com/yuin/goldmark","version":"v1.4.13","vcs_hash":"fbec1a06cf7d810b36a87559756866f825159c4db030b543bd6359717d401035","timestamp":"2022-07-09T07:22:17Z","subdir":"","vcs_ref":"refs/tags/v1.4.13"},\
 {"module":"github.com/yuin/gopher-lua","version":"v1.1.1","vcs_hash":"c7b972ae498e6769c8889bd8b5c69ecf798feb704f10fc994b7543cbbc946723","timestamp":"2023-12-02T10:27:43Z","subdir":"","vcs_ref":"refs/tags/v1.1.1"},\
+{"module":"github.com/yuin/gopher-lua","version":"v1.1.2","vcs_hash":"149a21e59110759d031622c861ac051b9299672327747a430c4f3088579a4bfa","timestamp":"2026-04-01T00:48:02Z","subdir":"","vcs_ref":"refs/tags/v1.1.2"},\
+{"module":"github.com/pelletier/go-toml/v2","version":"v2.3.1","vcs_hash":"b3a8231519f2650f88e1923e7e2acd534191ae7479df54da2a287166658b08e2","timestamp":"2026-04-16T23:29:02Z","subdir":"","vcs_ref":"refs/tags/v2.3.1"},\
 {"module":"github.com/pelletier/go-toml/v2","version":"v2.2.4","vcs_hash":"024e6f520632e6be8a8fbc0202fdf0da2cfc0266ff95451a8e8d944dd0d8882f","timestamp":"2025-04-07T11:11:38Z","subdir":"","vcs_ref":"refs/tags/v2.2.4"},\
-{"module":"github.com/mikefarah/yq/v4","version":"v4.52.5","vcs_hash":"f73514d15dee7af8ff7593cb904c4ad6a50f322537216795df6a269c2853f483","timestamp":"2026-03-25T23:03:01Z","subdir":"v4","vcs_ref":"refs/tags/v4.52.5"},\
+{"module":"github.com/mikefarah/yq/v4","version":"v4.53.3-0.20260515122206-8f3291d31654","vcs_hash":"e32a37bc90a993627322192503d1b1b676f18c44dd848d0fc84f65de3508054e","timestamp":"2026-05-15T12:22:06Z","subdir":"v4","vcs_ref":""},\
+{"module":"github.com/mikefarah/yq/v4","version":"v4.52.5","vcs_hash":"f73514d15dee7af8ff7593cb904c4ad6a50f322537216795df6a269c2853f483","timestamp":"2026-03-25T23:03:01Z","subdir":"","vcs_ref":"refs/tags/v4.52.5"},\
 {"module":"github.com/pmezard/go-difflib","version":"v1.0.0","vcs_hash":"c04ad296d2e3203fda8b7ca96feaca21b20b3b7441e33c7d67cda029ea61ab4c","timestamp":"2016-01-10T10:55:54Z","subdir":"","vcs_ref":"refs/tags/v1.0.0"},\
+{"module":"github.com/hexops/gotextdiff","version":"v1.0.3","vcs_hash":"828c1fe63ff7e801a78fa77e661ceb41d8db232b60e41d4c0ea25b0b63799f38","timestamp":"2020-12-13T06:12:29Z","subdir":"","vcs_ref":"refs/tags/v1.0.3"},\
 {"module":"github.com/davecgh/go-spew","version":"v1.1.1","vcs_hash":"4c7d69cfe586f86079773ff48d94f76d327c2914d8dfeffca9e34fd1146e5d5e","timestamp":"2018-02-21T23:26:28Z","subdir":"","vcs_ref":"refs/tags/v1.1.1"},\
 {"module":"github.com/davecgh/go-spew","version":"v1.1.0","vcs_hash":"5ce38ad71c2d3bc390b87154a89c53fd5ead19aed2bf005419db5c0b28ea9dfd","timestamp":"2016-10-29T20:57:26Z","subdir":"","vcs_ref":"refs/tags/v1.1.0"},\
 {"module":"github.com/dimchansky/utfbom","version":"v1.1.1","vcs_hash":"04f39ab86cb6ab9bf2a2278357fae9932b31f6cb8b07bf8e6ca02581cbf46ecf","timestamp":"2020-11-06T16:33:08Z","subdir":"","vcs_ref":"refs/tags/v1.1.1"},\
 {"module":"github.com/mitchellh/go-wordwrap","version":"v1.0.1","vcs_hash":"c6c7d05ba9f6db2637751fa2ce7bbc8bb04f632abc0b05363566319c8fd9c9b0","timestamp":"2020-09-25T18:08:01Z","subdir":"","vcs_ref":"refs/tags/v1.0.1"},\
 {"module":"github.com/goccy/go-yaml","version":"v1.19.2","vcs_hash":"2033b454ed3210fa277deb8871eded039f660f71a54acd3706dc12c271968557","timestamp":"2026-01-08T01:12:13Z","subdir":"","vcs_ref":"refs/tags/v1.19.2"},\
+{"module":"github.com/goccy/go-json","version":"v0.10.6","vcs_hash":"5846629b467935029b203dee7c7c10b85d6c9b0dd3594d7b63918c2bcf440416","timestamp":"2025-10-28T00:14:29Z","subdir":"","vcs_ref":"refs/tags/v0.10.6"},\
 {"module":"github.com/goccy/go-json","version":"v0.10.5","vcs_hash":"9135ffafe2f170bce8f90413934c0b25aa6d201122cc437153cf64a206c46389","timestamp":"2025-01-25T05:38:06Z","subdir":"","vcs_ref":"refs/tags/v0.10.5"},\
 {"module":"github.com/hashicorp/hcl/v2","version":"v2.24.0","vcs_hash":"7505ee60afc6b2dde4e4189214cf3f948ce2ebbc3aac73c7ba669bd366b12941","timestamp":"2025-07-07T13:00:56Z","subdir":"","vcs_ref":"refs/tags/v2.24.0"},\
 {"module":"github.com/magiconair/properties","version":"v1.8.10","vcs_hash":"c97479fb46a7e15abf895966e9b8e63015d259ca2a147e68571b64fc63c0d728","timestamp":"2025-04-09T19:30:57Z","subdir":"","vcs_ref":"refs/tags/v1.8.10"},\
@@ -53,17 +60,25 @@ GO_MODULE_CACHE_DATA = '[\
 {"module":"github.com/a8m/envsubst","version":"v1.4.3","vcs_hash":"6385d2d98bb14c52d8c089f3589b0fcb860bddb6825cfc3d85d621682e5c57b9","timestamp":"2025-02-24T09:05:29Z","subdir":"","vcs_ref":"refs/tags/v1.4.3"},\
 {"module":"go.yaml.in/yaml/v3","version":"v3.0.4","vcs_hash":"28af0e86ac86bfc3e00873c91eee3b58eb4f82e4f4c0f7963ccfc8872fd4a4a5","timestamp":"2025-06-29T14:09:51Z","subdir":"","vcs_ref":"refs/tags/v3.0.4"},\
 {"module":"go.yaml.in/yaml/v4","version":"v4.0.0-rc.3","vcs_hash":"bb6f6ec483049dba1843496880df5682fc52f28cc7a78c0fd6884e70812d5903","timestamp":"2025-11-04T17:29:07Z","subdir":"","vcs_ref":"refs/tags/v4.0.0-rc.3"},\
+{"module":"go.yaml.in/yaml/v4","version":"v4.0.0-rc.4","vcs_hash":"adea5cf06c6a3beda8e988488bf42b037fd9e912a944733d3d8861ee12229595","timestamp":"2026-01-21T17:38:02Z","subdir":"","vcs_ref":"refs/tags/v4.0.0-rc.4"},\
 {"module":"golang.org/x/sys","version":"v0.6.0","vcs_hash":"323536cd91bc88e38213d12787ab63a3504a0061ffc7b17a8c7ca560497f24fa","timestamp":"2023-03-04T03:20:52Z","subdir":"","vcs_ref":"refs/tags/v0.6.0"},\
+{"module":"golang.org/x/sys","version":"v0.44.0","vcs_hash":"6f609e950a030bdc26d17f92e04a240e08056999bfc36f1bb76905a96337c8d1","timestamp":"2026-04-23T15:37:02Z","subdir":"","vcs_ref":"refs/tags/v0.44.0"},\
 {"module":"golang.org/x/sys","version":"v0.42.0","vcs_hash":"8e0c29133c55549f2a5ccd9da93c1f00cb94b6e82a15ed2bf8a2406448f69c37","timestamp":"2026-03-03T01:51:03Z","subdir":"","vcs_ref":"refs/tags/v0.42.0"},\
+{"module":"golang.org/x/mod","version":"v0.36.0","vcs_hash":"e9de7b4407aeb467de3c62d2bad1dc689e8fd55b7f2a1e79061cb61264664642","timestamp":"2026-05-08T14:58:09Z","subdir":"","vcs_ref":"refs/tags/v0.36.0"},\
 {"module":"golang.org/x/mod","version":"v0.34.0","vcs_hash":"1af1d21eb7fa2b5e8a9a6a7d5808842d0eea82c835de520cff0561f026a05912","timestamp":"2026-03-10T01:41:08Z","subdir":"","vcs_ref":"refs/tags/v0.34.0"},\
 {"module":"golang.org/x/term","version":"v0.41.0","vcs_hash":"7bae64b3057af373aecee34a2667fba2aff1e229ff6472c080e93e65458ffe5a","timestamp":"2026-03-10T01:43:14Z","subdir":"","vcs_ref":"refs/tags/v0.41.0"},\
+{"module":"golang.org/x/term","version":"v0.43.0","vcs_hash":"833a11849e3b51c3538c5b69d1368e81e35ff552c00c6a13a36cbc413c164216","timestamp":"2026-05-08T14:56:58Z","subdir":"","vcs_ref":"refs/tags/v0.43.0"},\
 {"module":"golang.org/x/sync","version":"v0.20.0","vcs_hash":"7832f0aec63a5b5bc0fa1a349a5a6f0126ede331ea71a528ecb5f3968f2b000c","timestamp":"2026-02-23T18:54:42Z","subdir":"","vcs_ref":"refs/tags/v0.20.0"},\
+{"module":"golang.org/x/crypto","version":"v0.51.0","vcs_hash":"f7a79adfd6049637e515911d3a008f05dd22226f61ae84479def5df39d29707a","timestamp":"2026-05-08T18:32:18Z","subdir":"","vcs_ref":"refs/tags/v0.51.0"},\
 {"module":"golang.org/x/crypto","version":"v0.49.0","vcs_hash":"23dac2d7085396c124998bcb52ef3e320806e49ca8538858dc73b51f3a6b50c9","timestamp":"2026-03-11T14:17:49Z","subdir":"","vcs_ref":"refs/tags/v0.49.0"},\
 {"module":"golang.org/x/net","version":"v0.52.0","vcs_hash":"8d3e280d3345387bdd35c143197391bbd4383d486ebe6282af075a83bafb973d","timestamp":"2026-03-12T00:35:42Z","subdir":"","vcs_ref":"refs/tags/v0.52.0"},\
+{"module":"golang.org/x/net","version":"v0.54.0","vcs_hash":"46f21d32409f4a159fe51cd882140175e302f61ec34e05d50704e01d09bdc7a6","timestamp":"2026-05-08T20:02:48Z","subdir":"","vcs_ref":"refs/tags/v0.54.0"},\
 {"module":"golang.org/x/text","version":"v0.35.0","vcs_hash":"ebd21b780d473b9c6279389bf7828889387f448497e2613cddf2feabfcde4ea8","timestamp":"2026-03-10T01:41:36Z","subdir":"","vcs_ref":"refs/tags/v0.35.0"},\
+{"module":"golang.org/x/text","version":"v0.37.0","vcs_hash":"e53e4f0de2a6229a86b6a055faa58c9fc01de8aa4f2dc6e02a03321ec257faf9","timestamp":"2026-05-08T14:56:42Z","subdir":"","vcs_ref":"refs/tags/v0.37.0"},\
+{"module":"golang.org/x/telemetry","version":"v0.0.0-20260409153401-be6f6cb8b1fa","vcs_hash":"8769e75b3c0d88084f1ae1ab0bf12fc27fa9d58db51659927ed3b9529b6c52e3","timestamp":"2026-04-09T15:34:01Z","subdir":"","vcs_ref":""},\
 {"module":"golang.org/x/telemetry","version":"v0.0.0-20260209163413-e7419c687ee4","vcs_hash":"ff4282cb8e2b0e4088d42fc96bacfe1322bf51ff7be67817ef4b90e992f36a1f","timestamp":"2026-02-09T16:34:13Z","subdir":"","vcs_ref":""},\
+{"module":"golang.org/x/tools","version":"v0.44.0","vcs_hash":"72caacbd34fed65d0d9d0b7abba9d20d2558759fa56e50847189046954a72cce","timestamp":"2026-04-09T21:00:41Z","subdir":"","vcs_ref":"refs/tags/v0.44.0"},\
 {"module":"golang.org/x/tools","version":"v0.42.0","vcs_hash":"0308efd24b464153e6b2259ec10201a952a72d416a7772b9ee039f9e8158d3fd","timestamp":"2026-02-09T18:28:22Z","subdir":"","vcs_ref":"refs/tags/v0.42.0"},\
 {"module":"gopkg.in/check.v1","version":"v0.0.0-20161208181325-20d25e280405","vcs_hash":"f6f7125ac7ef086ca6395a14a9a28c8c11cd6f8790a8be7cfd6475d1acd0f40b","timestamp":"2016-12-08T18:13:25Z","subdir":"","vcs_ref":""},\
-{"module":"gopkg.in/yaml.v3","version":"v3.0.0-20200313102051-9f266ea9e77c","vcs_hash":"ae6e6119974a43d5668501b6efe7e743408319dee4094d1929d3e75a4f5dac98","timestamp":"2020-03-13T10:20:51Z","subdir":"","vcs_ref":""},\
-{"module":"gopkg.in/op/go-logging.v1","version":"v1.0.0-20160211212156-b2cb9fa56473","vcs_hash":"d7eaf61c8acf895effd99427400723a26515b0eec7d5ac77fce7caa0948a730d","timestamp":"2016-02-11T21:21:56Z","subdir":"","vcs_ref":""}\
+{"module":"gopkg.in/yaml.v3","version":"v3.0.0-20200313102051-9f266ea9e77c","vcs_hash":"ae6e6119974a43d5668501b6efe7e743408319dee4094d1929d3e75a4f5dac98","timestamp":"2020-03-13T10:20:51Z","subdir":"","vcs_ref":""}\
 ]'
