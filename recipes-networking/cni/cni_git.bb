@@ -10,8 +10,8 @@ is simple to implement. \
 "
 
 SRCREV_cni = "7c270076995b6a35f4774ce94dafcf266d1c6925"
-SRCREV_plugins = "6d8f05b82e47b3bf573986146842c08f358270a7"
-SRCREV_flannel_plugin = "09e4c7f9bee6abdf56e97f167a85248a7084f7ef"
+SRCREV_plugins = "d653d38d4f3699653aa25cc1697924b2a9c2ae3e"
+SRCREV_flannel_plugin = "e4902565b662b0fcc7ac7e6abf6b74e15518e024"
 SRCREV_FORMAT = "cni_plugins"
 SRC_URI = "\
 	git://github.com/containernetworking/cni.git;branch=main;name=cni;protocol=https;destsuffix=${GO_SRCURI_DESTSUFFIX} \
@@ -22,6 +22,9 @@ SRC_URI += "git://github.com/flannel-io/cni-plugin;branch=main;name=flannel_plug
 
 include go-mod-git.inc
 include go-mod-cache.inc
+
+# Per-dependency license tracking
+include go-mod-licenses.inc
 
 DEPENDS = " \
     rsync-native \
