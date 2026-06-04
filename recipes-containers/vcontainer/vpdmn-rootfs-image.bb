@@ -54,7 +54,7 @@ IMAGE_INSTALL = " \
     aardvark-dns \
     busybox \
     iproute2 \
-    iptables \
+    nftables \
     util-linux \
     ca-certificates \
 "

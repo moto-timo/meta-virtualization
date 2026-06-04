@@ -112,6 +112,7 @@ KERNEL_FEATURES:append = "${@distro_cond_feature('cgl/features/selinux/selinux.c
 
 # vcontainer
 KERNEL_FEATURES:append = "${@distro_cond_feature('cfg/container.scc', 'vcontainer', d)}"
+SRC_URI += "${@bb.utils.contains('DISTRO_FEATURES', 'vcontainer', ' file://container-net.cfg', '', d)}"
 
 # vxn: Xen PV guest support for vcontainer-on-Xen
 SRC_URI += "${@bb.utils.contains('DISTRO_FEATURES', 'vxn', ' file://vxn.cfg', '', d)}"
