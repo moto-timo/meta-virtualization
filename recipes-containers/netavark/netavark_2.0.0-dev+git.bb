@@ -41,6 +41,9 @@ REQUIRED_DISTRO_FEATURES ?= "seccomp"
 
 DEPENDS += "protobuf-c-native protobuf-c"
 
+# netavark dropped iptables support and uses nft directly for firewall rules
+RDEPENDS:${PN} += "nftables"
+
 # bind-utils is used to install dig
 # procps-ps is necessary because the ps from busybox is
 # not having the same behavior

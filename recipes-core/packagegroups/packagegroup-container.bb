@@ -51,6 +51,7 @@ RDEPENDS:packagegroup-cni = " \
 
 RDEPENDS:packagegroup-netavark = " \
     ${@bb.utils.contains('DISTRO_FEATURES', 'seccomp', 'netavark aardvark-dns', '', d)} \
+    nftables \
 "
 
 RDEPENDS:packagegroup-container-tools = " \
