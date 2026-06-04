@@ -313,11 +313,11 @@ python __anonymous() {
     d.setVar('_CONTAINER_SERVICE_FILE_MAP', ';'.join(service_mappings))
 }
 
-# S must be a real directory
-S = "${WORKDIR}/sources"
+S = "${UNPACKDIR}/sources"
 B = "${WORKDIR}/build"
 
-do_unpack[noexec] = "1"
+# do_unpack must run so that file:// SRC_URI entries (custom service files
+# referenced by CONTAINER_SERVICE_FILE) are extracted into UNPACKDIR.
 do_patch[noexec] = "1"
 do_configure[noexec] = "1"
 
