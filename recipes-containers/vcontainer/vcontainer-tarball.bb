@@ -100,6 +100,30 @@ INHIBIT_DEFAULT_DEPS = "1"
 
 do_populate_sdk[stamp-extra-info] = "${PACKAGE_ARCH}"
 
+# Track rootfs blob content so the tarball rebuilds when rootfs images change.
+# Without this, the mcdepends ensures blobs exist but the do_populate_sdk
+# sstate hash doesn't include their content — a rootfs change (e.g. adding
+# netavark) produces a stale tarball from sstate.
+def vcontainer_blob_checksums(d):
+    import os
+    topdir = d.getVar('TOPDIR')
+    archs = (d.getVar('VCONTAINER_ARCHITECTURES') or '').split()
+    checksums = []
+    arch_info = {
+        'x86_64': ('vruntime-x86-64', 'qemux86-64'),
+        'aarch64': ('vruntime-aarch64', 'qemuarm64'),
+    }
+    for arch in archs:
+        if arch not in arch_info:
+            continue
+        mc, machine = arch_info[arch]
+        for tool in ('vdkr', 'vpdmn'):
+            rootfs = os.path.join(topdir, 'tmp-%s' % mc, 'deploy', 'images', machine, tool, arch, 'rootfs.img')
+            checksums.append('%s:True' % rootfs)
+    return ' '.join(checksums)
+
+do_populate_sdk[file-checksums] += "${@vcontainer_blob_checksums(d)}"
+
 # ===========================================================================
 # Architecture mapping
 # ===========================================================================
