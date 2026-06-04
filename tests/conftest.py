@@ -501,10 +501,17 @@ class VdkrRunner:
         result = self.memres_status()
         return result.returncode == 0 and "running" in result.stdout.lower()
 
-    def ensure_memres(self, timeout=180):
-        """Ensure memres is running, starting it if needed."""
+    def ensure_memres(self, timeout=180, no_registry=True):
+        """Ensure memres is running, starting it if needed.
+
+        Args:
+            timeout: Timeout for memres start
+            no_registry: Disable baked-in registry (default True for tests
+                so that pulled images use short names like alpine:latest
+                rather than registry-prefixed names)
+        """
         if not self.is_memres_running():
-            result = self.memres_start(timeout=timeout)
+            result = self.memres_start(timeout=timeout, no_registry=no_registry)
             if result.returncode != 0:
                 raise RuntimeError(f"Failed to start memres: {result.stderr}")
 
@@ -790,10 +797,17 @@ class VpdmnRunner:
         result = self.memres_status()
         return result.returncode == 0 and "running" in result.stdout.lower()
 
-    def ensure_memres(self, timeout=180):
-        """Ensure memres is running, starting it if needed."""
+    def ensure_memres(self, timeout=180, no_registry=True):
+        """Ensure memres is running, starting it if needed.
+
+        Args:
+            timeout: Timeout for memres start
+            no_registry: Disable baked-in registry (default True for tests
+                so that pulled images use short names like alpine:latest
+                rather than registry-prefixed names)
+        """
         if not self.is_memres_running():
-            result = self.memres_start(timeout=timeout)
+            result = self.memres_start(timeout=timeout, no_registry=no_registry)
             if result.returncode != 0:
                 raise RuntimeError(f"Failed to start memres: {result.stderr}")
 

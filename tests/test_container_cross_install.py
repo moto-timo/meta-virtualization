@@ -88,21 +88,21 @@ def meta_virt_dir(poky_dir):
 
 
 def run_bitbake(build_dir, recipe, task=None, extra_args=None, timeout=1800):
-    """Run a bitbake command."""
-    cmd = ["bitbake"]
+    """Run a bitbake command within the Yocto environment."""
+    bb_cmd = "bitbake"
     if task:
-        cmd.extend(["-c", task])
-    cmd.append(recipe)
+        bb_cmd += f" -c {task}"
+    bb_cmd += f" {recipe}"
     if extra_args:
-        cmd.extend(extra_args)
+        bb_cmd += " " + " ".join(extra_args)
 
-    env = os.environ.copy()
-    env["BUILDDIR"] = str(build_dir)
+    poky_dir = build_dir.parent
+    full_cmd = f"bash -c 'cd {poky_dir} && source oe-init-build-env {build_dir} >/dev/null 2>&1 && {bb_cmd}'"
 
     result = subprocess.run(
-        cmd,
+        full_cmd,
+        shell=True,
         cwd=build_dir,
-        env=env,
         timeout=timeout,
         capture_output=True,
         text=True,
@@ -298,13 +298,13 @@ class TestVdkrRecipes:
         assert len(installers) > 0, f"No SDK installer found in {sdk_deploy}"
 
     def test_vdkr_initramfs_create(self, build_dir):
-        """Test vdkr-initramfs-create builds."""
-        result = run_bitbake(build_dir, "vdkr-initramfs-create")
+        """Test vdkr-initramfs-create builds via multiconfig."""
+        result = run_bitbake(build_dir, "mc:vruntime-x86-64:vdkr-initramfs-create")
         assert result.returncode == 0, f"Build failed: {result.stderr}"
 
     def test_vpdmn_initramfs_create(self, build_dir):
-        """Test vpdmn-initramfs-create builds."""
-        result = run_bitbake(build_dir, "vpdmn-initramfs-create")
+        """Test vpdmn-initramfs-create builds via multiconfig."""
+        result = run_bitbake(build_dir, "mc:vruntime-x86-64:vpdmn-initramfs-create")
         assert result.returncode == 0, f"Build failed: {result.stderr}"
 
 
@@ -991,7 +991,7 @@ class TestCustomServiceFileBoot:
     @pytest.mark.boot
     def test_systemd_services_directory_exists(self, runqemu_session):
         """Test that systemd service directories exist."""
-        output = runqemu_session.run_command('ls -la /lib/systemd/system/ | head -5')
+        output = runqemu_session.run_command('ls -la /lib/systemd/system/ | head -n 5')
         assert 'systemd' in output or 'total' in output, \
             "Systemd system directory not accessible"
 
