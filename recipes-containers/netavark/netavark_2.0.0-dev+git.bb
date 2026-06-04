@@ -4,11 +4,11 @@ HOMEPAGE = "https://github.com/containers/netavark"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=86d3f3a95c324c9479bd8986968f4327"
 
-SRCREV = "3ea50b5d5b0e2d90bcc759351abb2a0b56e6f3d5"
+SRCREV = "a1f4894834ffc4cf7b7e5b83dc3b20d27f630239"
 
 # It is possible to fetch the source using the crate fetcher instead:
 #SRC_URI = "crate://crates.io/${BPN}/${PV}"
-SRC_URI = "git://github.com/containers/netavark.git;protocol=https;branch=v1.17 \
+SRC_URI = "git://github.com/containers/netavark.git;protocol=https;branch=main \
            file://run-ptest"
 require ${BPN}-crates.inc
 
