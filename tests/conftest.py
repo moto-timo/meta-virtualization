@@ -259,6 +259,13 @@ def pytest_addoption(parser):
         default=False,
         help="Run secure registry tests (requires openssl, htpasswd)",
     )
+    # Container cross-install coverage options
+    parser.addoption(
+        "--container-profiles",
+        action="store",
+        default="docker,podman",
+        help="Comma-separated container profiles to test (default: docker,podman)",
+    )
 
 
 def _cleanup_stale_test_state():
@@ -645,6 +652,9 @@ def pytest_configure(config):
     )
     config.addinivalue_line(
         "markers", "boot: marks tests that boot a QEMU image (requires built image)"
+    )
+    config.addinivalue_line(
+        "markers", "container_profile: marks tests parametrized over container profiles"
     )
     config.addinivalue_line(
         "markers", "k3s: marks k3s runtime tests"
