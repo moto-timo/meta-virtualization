@@ -11,6 +11,9 @@ KERNEL_FEATURES:append = "${@bb.utils.contains('DISTRO_FEATURES', 'aufs', ' feat
 # Always add a local/layer fragment for easy debug and enabling of options
 SRC_URI += "file://extra-configs.cfg"
 
+# LXC 7.0 requires CONFIG_SCHED_CORE for core scheduling
+SRC_URI += "file://lxc-extra.cfg"
+
 # Inject the kcfg sysroot into the scc search path so compound .scc
 # files (like container.scc) can resolve their include directives.
 # Only needed for kernels that do NOT have a type=kmeta SRC_URI entry
