@@ -217,6 +217,16 @@ do_install:append() {
 	install -m 0644 ${UNPACKDIR}/libvirtd.conf ${D}/etc/libvirt/libvirtd.conf
 	install -m 0644 ${UNPACKDIR}/libvirt-qemu.conf ${D}${nonarch_libdir}/sysusers.d/libvirt-qemu.conf
 
+	# Disable secrets encryption — requires systemd-creds with TPM or
+	# persistent host key that embedded/QEMU environments do not have.
+	# The encrypted credential generated at build time cannot be decrypted
+	# at runtime on a different machine, causing libvirtd to fail with
+	# "Invalid encryption key for the secret".
+	sed -i 's/^#encrypt_data = 1/encrypt_data = 0/' ${D}${sysconfdir}/libvirt/secret.conf
+	# Remove the stale build-time encrypted key so the init service
+	# does not skip regeneration on first boot
+	rm -f ${D}${localstatedir}/lib/libvirt/secrets/secrets-encryption-key
+
 	if ${@bb.utils.contains('DISTRO_FEATURES','sysvinit','true','false',d)}; then
 	    # This will wind up in the libvirtd package, but will NOT be invoked by default.
 	    #
