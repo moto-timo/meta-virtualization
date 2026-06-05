@@ -8,22 +8,18 @@ Single-node tests verify k3s server start, node readiness, and basic pod
 deployment. Multi-node tests use QEMU socket networking to connect two VMs
 on a shared L2 segment and verify agent join + multi-node scheduling.
 
-Build prerequisites (in local.conf):
-    require conf/distro/include/meta-virt-host.conf
-    require conf/distro/include/container-host-k3s.conf
-    MACHINE = "qemux86-64"  # or qemuarm64
-
-    bitbake container-image-host
+The tests automatically build container-image-host with CONTAINER_PROFILE=k3s-host
+before booting. No local.conf changes needed.
 
 Run:
     # Single-node only
-    pytest tests/test_k3s_runtime.py -v -k "not multinode" --machine qemux86-64
+    pytest tests/test_k3s_runtime.py -v -k "not multinode" --poky-dir /opt/bruce/poky
 
     # Multi-node only
-    pytest tests/test_k3s_runtime.py -v -k "multinode" --machine qemux86-64
+    pytest tests/test_k3s_runtime.py -v -k "multinode" --poky-dir /opt/bruce/poky
 
     # All tests
-    pytest tests/test_k3s_runtime.py -v --machine qemux86-64
+    pytest tests/test_k3s_runtime.py -v --poky-dir /opt/bruce/poky
 
 Options:
     --k3s-timeout       Overall k3s readiness timeout (default: 300s)
@@ -43,6 +39,8 @@ Notes:
 import os
 import re
 import shutil
+import subprocess
+import tempfile
 import time
 import pytest
 from pathlib import Path
@@ -290,6 +288,39 @@ class K3sRunner:
 # Fixtures
 # ============================================================================
 
+def run_bitbake(build_dir, recipe, extra_vars=None, timeout=3600):
+    """Run a bitbake command within the Yocto environment."""
+    import tempfile
+
+    bb_cmd = "bitbake"
+
+    conf_file = None
+    if extra_vars:
+        conf_file = tempfile.NamedTemporaryFile(
+            mode='w', suffix='.conf', prefix='pytest-k3s-',
+            dir=str(build_dir / "conf"), delete=False)
+        for var, val in extra_vars.items():
+            conf_file.write(f'{var} = "{val}"\n')
+        conf_file.close()
+        bb_cmd += f" -R {conf_file.name}"
+
+    bb_cmd += f" {recipe}"
+
+    poky_dir = build_dir.parent
+    full_cmd = f"bash -c 'cd {poky_dir} && source oe-init-build-env {build_dir} >/dev/null 2>&1 && {bb_cmd}'"
+
+    try:
+        result = subprocess.run(
+            full_cmd, shell=True, cwd=build_dir,
+            timeout=timeout, capture_output=True, text=True,
+        )
+    finally:
+        if conf_file:
+            os.unlink(conf_file.name)
+
+    return result
+
+
 @pytest.fixture(scope="module")
 def poky_dir(request):
     """Path to poky directory."""
@@ -325,19 +356,27 @@ def k3s_timeout(request):
 
 
 @pytest.fixture(scope="module")
-def k3s_session(request, poky_dir, build_dir, machine):
+def k3s_image(build_dir):
+    """Build container-image-host with k3s profile."""
+    result = run_bitbake(
+        build_dir, "container-image-host",
+        extra_vars={
+            "CONTAINER_PROFILE": "k3s-host",
+            "DISTRO_FEATURES:append": " k3s virtualization",
+        },
+    )
+    if result.returncode != 0:
+        pytest.fail(f"K3s image build failed: {result.stderr}")
+
+
+@pytest.fixture(scope="module")
+def k3s_session(request, poky_dir, build_dir, machine, k3s_image):
     """
-    Module-scoped fixture that boots container-image-host once for all
-    single-node k3s tests. Uses runqemu for single-node tests.
+    Module-scoped fixture that builds container-image-host with k3s profile,
+    boots it, and provides a session for all single-node k3s tests.
     """
     if not PEXPECT_AVAILABLE:
         pytest.skip("pexpect not installed. Run: pip install pexpect")
-
-    deploy_dir = build_dir / "tmp" / "deploy" / "images" / machine
-    ext4_files = list(deploy_dir.glob("container-image-host-*.rootfs.ext4"))
-    if not ext4_files:
-        pytest.skip(
-            f"container-image-host ext4 image not found in {deploy_dir}")
 
     timeout = request.config.getoption("--boot-timeout")
     use_kvm = not request.config.getoption("--no-kvm")
@@ -356,10 +395,10 @@ def k3s_session(request, poky_dir, build_dir, machine):
 
 
 @pytest.fixture(scope="module")
-def k3s_multinode(request, poky_dir, build_dir, machine):
+def k3s_multinode(request, poky_dir, build_dir, machine, k3s_image):
     """
-    Module-scoped fixture that boots two VMs connected via QEMU socket
-    networking for multi-node k3s testing.
+    Module-scoped fixture that builds with k3s profile, then boots two VMs
+    connected via QEMU socket networking for multi-node k3s testing.
 
     Uses direct QEMU launch (not runqemu) since runqemu can only run
     one VM at a time. Creates a copy of the rootfs for the agent VM.

@@ -7,21 +7,11 @@ Xen runtime boot tests - boot xen-image-minimal and verify hypervisor.
 These tests boot an actual Xen Dom0 image via runqemu, verify the
 hypervisor is functional, check guest bundling, and exercise vxn/containerd.
 
-Build prerequisites (minimum for Dom0 boot tests):
-    DISTRO_FEATURES:append = " xen systemd"
-    MACHINE = "qemux86-64"  # or qemuarm64
-    bitbake xen-image-minimal
-
-For guest bundling tests:
-    IMAGE_INSTALL:append:pn-xen-image-minimal = " alpine-xen-guest-bundle"
-
-For vxn/containerd tests:
-    DISTRO_FEATURES:append = " virtualization vcontainer vxn"
-    IMAGE_INSTALL:append:pn-xen-image-minimal = " vxn"
-    BBMULTICONFIG = "vruntime-aarch64 vruntime-x86-64"
+The tests automatically build xen-image-minimal with the required
+DISTRO_FEATURES before booting. No local.conf changes needed.
 
 Run with:
-    pytest tests/test_xen_runtime.py -v --machine qemux86-64
+    pytest tests/test_xen_runtime.py -v --poky-dir /opt/bruce/poky
 
 Skip network-dependent tests:
     pytest tests/test_xen_runtime.py -v -m "boot and not network"
@@ -33,7 +23,10 @@ Custom paths and longer timeout:
         --boot-timeout 180
 """
 
+import os
 import re
+import subprocess
+import tempfile
 import time
 import pytest
 from pathlib import Path
@@ -48,6 +41,29 @@ except ImportError:
 
 # Note: Command line options (--poky-dir, --build-dir, --machine, --boot-timeout, --no-kvm)
 # are defined in conftest.py to avoid conflicts with other test files.
+
+
+def _run_bitbake(build_dir, recipe, extra_vars=None, timeout=3600):
+    """Run bitbake with optional variable overrides via -R conf file."""
+    bb_cmd = "bitbake"
+    conf_file = None
+    if extra_vars:
+        conf_file = tempfile.NamedTemporaryFile(
+            mode='w', suffix='.conf', prefix='pytest-xen-',
+            dir=str(build_dir / "conf"), delete=False)
+        for var, val in extra_vars.items():
+            conf_file.write(f'{var} = "{val}"\n')
+        conf_file.close()
+        bb_cmd += f" -R {conf_file.name}"
+    bb_cmd += f" {recipe}"
+    poky_dir = build_dir.parent
+    full_cmd = f"bash -c 'cd {poky_dir} && source oe-init-build-env {build_dir} >/dev/null 2>&1 && {bb_cmd}'"
+    try:
+        return subprocess.run(full_cmd, shell=True, cwd=build_dir,
+                              timeout=timeout, capture_output=True, text=True)
+    finally:
+        if conf_file:
+            os.unlink(conf_file.name)
 
 
 class XenRunner:
@@ -218,11 +234,25 @@ def machine(request):
 
 
 @pytest.fixture(scope="module")
-def xen_session(request, poky_dir, build_dir, machine):
-    """
-    Module-scoped fixture that boots xen-image-minimal once for all tests.
+def xen_image(build_dir):
+    """Build xen-image-minimal with required distro features."""
+    result = _run_bitbake(
+        build_dir, "xen-image-minimal",
+        extra_vars={
+            "DISTRO_FEATURES:append": " xen vxn virtualization vcontainer systemd",
+        },
+    )
+    if result.returncode != 0:
+        pytest.fail(f"Xen image build failed: {result.stderr}")
 
-    Skips if pexpect is not available, image is not found, or boot fails.
+
+@pytest.fixture(scope="module")
+def xen_session(request, poky_dir, build_dir, machine, xen_image):
+    """
+    Module-scoped fixture that builds xen-image-minimal and boots it
+    once for all tests.
+
+    Skips if pexpect is not available or boot fails.
     """
     if not PEXPECT_AVAILABLE:
         pytest.skip("pexpect not installed. Run: pip install pexpect")
