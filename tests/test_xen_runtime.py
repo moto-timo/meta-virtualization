@@ -239,7 +239,7 @@ def xen_image(build_dir):
     result = _run_bitbake(
         build_dir, "xen-image-minimal",
         extra_vars={
-            "DISTRO_FEATURES:append": " xen vxn virtualization vcontainer systemd",
+            "DISTRO_FEATURES:append": " xen vxn",
         },
     )
     if result.returncode != 0:
