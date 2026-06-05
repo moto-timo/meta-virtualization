@@ -419,9 +419,13 @@ def k3s_multinode(request, poky_dir, build_dir, machine, k3s_image):
 
     rootfs_orig = ext4_files[-1]
 
-    # Create a copy of the rootfs for the agent VM — two VMs can't
-    # share the same ext4 file read-write
+    # Both VMs need their own rootfs copy — the original may still be
+    # locked by a previous runqemu session (single-node test), and two
+    # VMs can't share the same ext4 file read-write.
+    rootfs_server = Path(f"/tmp/k3s-server-rootfs-{os.getpid()}.ext4")
     rootfs_agent = Path(f"/tmp/k3s-agent-rootfs-{os.getpid()}.ext4")
+    print(f"Copying rootfs for server VM: {rootfs_orig} -> {rootfs_server}")
+    shutil.copy2(rootfs_orig, rootfs_server)
     print(f"Copying rootfs for agent VM: {rootfs_orig} -> {rootfs_agent}")
     shutil.copy2(rootfs_orig, rootfs_agent)
 
@@ -438,7 +442,7 @@ def k3s_multinode(request, poky_dir, build_dir, machine, k3s_image):
                        use_kvm=use_kvm, timeout=timeout,
                        extra_qemu_params=server_params,
                        use_runqemu=False,
-                       rootfs_path=rootfs_orig,
+                       rootfs_path=rootfs_server,
                        kernel_append="k3s.role=server k3s.node-ip=192.168.50.1",
                        log_suffix="-server")
 
@@ -454,6 +458,7 @@ def k3s_multinode(request, poky_dir, build_dir, machine, k3s_image):
                       rootfs_path=rootfs_agent,
                       kernel_append="k3s.role=agent k3s.node-ip=192.168.50.2 k3s.node-name=k3s-agent",
                       log_suffix="-agent")
+    server._rootfs_copy = str(rootfs_server)
     agent._rootfs_copy = str(rootfs_agent)
 
     try:
