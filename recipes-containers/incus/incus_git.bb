@@ -75,7 +75,7 @@ RDEPENDS:${PN} = " \
     attr \
     acl \
     dnsmasq \
-    iptables \
+    nftables \
     rsync \
     squashfs-tools \
     tar \
