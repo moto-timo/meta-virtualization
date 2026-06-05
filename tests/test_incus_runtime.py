@@ -70,7 +70,6 @@ def incus_image(request):
         build_dir, "container-image-host",
         extra_vars={
             "CONTAINER_PROFILE": "incus",
-            "DISTRO_FEATURES:append": " virtualization",
         },
     )
     if result.returncode != 0:

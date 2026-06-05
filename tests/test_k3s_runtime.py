@@ -362,7 +362,7 @@ def k3s_image(build_dir):
         build_dir, "container-image-host",
         extra_vars={
             "CONTAINER_PROFILE": "k3s-host",
-            "DISTRO_FEATURES:append": " k3s virtualization",
+            "DISTRO_FEATURES:append": " k3s",
         },
     )
     if result.returncode != 0:
