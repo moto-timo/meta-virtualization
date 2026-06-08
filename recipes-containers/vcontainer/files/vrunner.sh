@@ -607,13 +607,33 @@ daemon_stop() {
     local pid=$(cat "$DAEMON_PID_FILE")
     log "INFO" "Stopping daemon (PID: $pid)..."
 
-    # Send shutdown command via socket
+    # Send shutdown command via socket, then poll until the VM exits.
+    #
+    # The guest's graceful_shutdown() does sync + umount of
+    # /var/lib/containers/storage + blockdev --flushbufs + sync + sleep 2
+    # + reboot -f. Under load (e.g. tens of MB of just-imported layer
+    # blobs awaiting ext4 journal commit) this routinely takes 5-30
+    # seconds. A fixed 2-second wait followed by SIGTERM kills the
+    # guest mid-umount and leaves the state disk's ext4 journal
+    # half-committed: layer files have correct inode metadata but
+    # partially-unwritten data extents, and the next session's reads
+    # hit EOF or CRC failures during tar-split layer reassembly:
+    #
+    #   Error: reading blob sha256:<hash>: EOF
+    #   Error: reading blob sha256:<hash>: file integrity checksum
+    #          failed for "<file>"
     if [ -S "$DAEMON_SOCKET" ]; then
         echo "===SHUTDOWN===" | socat - "UNIX-CONNECT:$DAEMON_SOCKET" 2>/dev/null || true
-        sleep 2
+        # Poll up to 60s (120 * 0.5s). Generous enough to cover heavy
+        # ext4 journal commits; short enough that a truly hung guest
+        # doesn't block the caller indefinitely.
+        for _i in $(seq 1 120); do
+            kill -0 "$pid" 2>/dev/null || break
+            sleep 0.5
+        done
     fi
 
-    # If still running, kill it
+    # If still running after the graceful window, escalate.
     if kill -0 "$pid" 2>/dev/null; then
         log "INFO" "Sending SIGTERM..."
         kill "$pid" 2>/dev/null || true
