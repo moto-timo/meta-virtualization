@@ -633,7 +633,23 @@ daemon_stop() {
         done
     fi
 
-    # If still running after the graceful window, escalate.
+    # If still running after the graceful window, escalate via QMP quit.
+    # Functionally similar to SIGTERM at the QEMU-process level (both
+    # converge on qemu_system_killed and a block-layer flush), but goes
+    # through QEMU's monitor interface — the same path hv_idle_shutdown()
+    # uses. Keeps the two escalation paths consistent.
+    if kill -0 "$pid" 2>/dev/null; then
+        local qmp_sock="$DAEMON_SOCKET_DIR/qmp.sock"
+        if [ -S "$qmp_sock" ]; then
+            log "INFO" "Sending QMP quit..."
+            echo '{"execute":"qmp_capabilities"}{"execute":"quit"}' | \
+                socat - "UNIX-CONNECT:$qmp_sock" >/dev/null 2>&1 || true
+            sleep 2
+        fi
+    fi
+
+    # If QMP quit didn't take (or no QMP socket — older configs), fall
+    # back to SIGTERM.
     if kill -0 "$pid" 2>/dev/null; then
         log "INFO" "Sending SIGTERM..."
         kill "$pid" 2>/dev/null || true
