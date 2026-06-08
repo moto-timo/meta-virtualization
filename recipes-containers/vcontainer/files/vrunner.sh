@@ -633,6 +633,20 @@ daemon_stop() {
         done
     fi
 
+    # If still running after the graceful window, the guest didn't complete
+    # its graceful_shutdown() — meaning the state disk's ext4 journal may
+    # not have committed all pending writes from this session. Any escalation
+    # from here on risks leaving the disk image partially-written: layer
+    # files with correct inode metadata but unwritten data extents, which
+    # surface as "reading blob ...: EOF" or "file integrity checksum failed"
+    # errors on the *next* session's reads. Warn loudly so the operator can
+    # decide whether to start the next session with `memres restart --clean`.
+    if kill -0 "$pid" 2>/dev/null; then
+        log "WARN" "Guest did not exit within graceful window — state disk integrity may be compromised."
+        log "WARN" "If subsequent sessions report 'reading blob ...: EOF' or 'file integrity checksum failed',"
+        log "WARN" "discard state with: ${VCONTAINER_RUNTIME_NAME:-vrunner} memres restart --clean"
+    fi
+
     # If still running after the graceful window, escalate via QMP quit.
     # Functionally similar to SIGTERM at the QEMU-process level (both
     # converge on qemu_system_killed and a block-layer flush), but goes
