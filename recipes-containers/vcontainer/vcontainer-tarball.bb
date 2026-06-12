@@ -140,6 +140,25 @@ VCONTAINER_ARCHITECTURES ?= "x86_64 aarch64"
 
 # Conditionally set mcdepends based on available multiconfigs
 # (avoids parse errors when BBMULTICONFIG is not set, e.g. yocto-check-layer)
+#
+# Two layers of dependency per arch:
+#
+#   1. initramfs-create:do_deploy
+#      Task ordering — guarantees the rootfs.img / kernel / initramfs are
+#      staged under tmp-<mc>/deploy/images/<machine>/<tool>/<arch>/ before
+#      do_populate_sdk reads them.
+#
+#   2. rootfs-image:do_image_complete
+#      Defence-in-depth for sstate consistency. Without this, a rootfs
+#      content change (e.g. adding netavark, switching iptables -> nftables)
+#      would only invalidate the tarball's sstate hash if it propagates
+#      cleanly through rootfs-image:do_build -> initramfs-create:do_compile
+#      -> initramfs-create:do_deploy -> mcdepends. Any break in that chain
+#      (the DEPLOY_DIR-input sstate pattern is one known way to get a stale
+#      hit) re-introduces the netavark-stale-tarball failure mode. Listing
+#      the rootfs-image task directly puts its hash in our chain regardless
+#      of intermediate propagation, and costs nothing if the chain was
+#      already healthy.
 python () {
     bbmulticonfig = (d.getVar('BBMULTICONFIG') or "").split()
     mcdeps = []
@@ -147,6 +166,8 @@ python () {
         if mc in bbmulticonfig:
             mcdeps.append('mc::%s:vdkr-initramfs-create:do_deploy' % mc)
             mcdeps.append('mc::%s:vpdmn-initramfs-create:do_deploy' % mc)
+            mcdeps.append('mc::%s:vdkr-rootfs-image:do_image_complete' % mc)
+            mcdeps.append('mc::%s:vpdmn-rootfs-image:do_image_complete' % mc)
     if mcdeps:
         d.setVarFlag('do_populate_sdk', 'mcdepends', ' '.join(mcdeps))
 
