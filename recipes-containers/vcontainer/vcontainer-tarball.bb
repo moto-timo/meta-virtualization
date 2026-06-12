@@ -451,6 +451,8 @@ ENVEOF
 export VCONTAINER_DIR="${SDKPATH}"
 export OECORE_NATIVE_SYSROOT="${SDKPATHNATIVE}"
 export PATH="${SDKPATH}:${SDKPATHNATIVE}/usr/bin:/usr/bin:/bin:\$PATH"
+# Clean up - unset to avoid confusing other Yocto tools' >> $script
+unset OECORE_NATIVE_SYSROOT
 CISCRIPT
     chmod 755 $ci_script
 
