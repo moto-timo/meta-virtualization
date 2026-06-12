@@ -155,10 +155,14 @@ Create explicit layers with fine-grained control:
         app:packages:curl \
     "
 
-    # IMAGE_INSTALL must include all packages to trigger builds
-    IMAGE_INSTALL = "base-files base-passwd netbase busybox curl"
-
 Result: 3 layers (base, shell, app)
+
+Packages named in any `packages:` layer are automatically folded into
+`IMAGE_INSTALL`, so do_rootfs's recrdeptask builds them. You do not
+need to repeat the package list in `IMAGE_INSTALL`. If a recipe needs
+additional packages that aren't part of any final layer (e.g. for a
+rootfs-only postprocess fixup), it can still add to `IMAGE_INSTALL`
+itself — the auto-derivation is additive.
 
 #### Layer Definition Format
 
@@ -169,6 +173,7 @@ Result: 3 layers (base, shell, app)
 | `packages` | `pkg1+pkg2+pkg3` | Install packages (use + delimiter) |
 | `directories` | `/path1+/path2` | Copy directories from IMAGE_ROOTFS |
 | `files` | `/file1+/file2` | Copy specific files from IMAGE_ROOTFS |
+| `host` | `src:dst+src:dst` | Copy from build machine (sparingly — see below) |
 
 #### Example Recipes
 
@@ -180,7 +185,6 @@ OCI_LAYERS = "\
     python:packages:python3+python3-pip \
     app:directories:/opt/myapp \
 "
-IMAGE_INSTALL = "base-files base-passwd netbase python3 python3-pip myapp"
 ```
 
 **Two-layer with base image + multi-layer app:**
@@ -192,6 +196,33 @@ OCI_LAYERS = "\
     app:directories:/opt/myapp \
 "
 ```
+
+#### Conditional Packages per Layer
+
+Use `${@bb.utils.contains(...)}` directly inside a layer's package list
+to add or omit packages based on `PACKAGECONFIG` (or any other
+distro/recipe variable) without duplicating the whole `OCI_LAYERS`
+declaration in two branches:
+
+```bitbake
+PACKAGECONFIG ??= ""
+PACKAGECONFIG[dev] = ""
+
+OCI_LAYER_MODE = "multi"
+OCI_LAYERS = "\
+    base:packages:base-files+base-passwd+netbase \
+    python:packages:python3+coreutils${@bb.utils.contains('PACKAGECONFIG', 'dev', '+python3-pip', '', d)} \
+"
+```
+
+The expression expands to `+python3-pip` when `dev` is enabled and to
+nothing otherwise. Because the `+` delimiter is folded into the
+substituted text, the resulting layer string is well-formed in both
+cases (`python3+coreutils` or `python3+coreutils+python3-pip`).
+
+This composes with the auto-derivation above: `python3-pip` is added to
+`IMAGE_INSTALL` only when the `dev` config is active, exactly as if you
+had written it out by hand.
 
 ### Layer Caching
 
