@@ -371,8 +371,20 @@ python __anonymous() {
                     " apt-native:do_populate_sysroot")
                 bb.debug(1, "OCI: Added apt-native dependency for packages layers")
 
-            # Extract all packages from OCI_LAYERS and add do_package_write dependencies
-            # This allows IMAGE_INSTALL = "" for pure multi-layer builds
+            # Extract all packages from OCI_LAYERS and fold them into
+            # IMAGE_INSTALL so do_rootfs's recrdeptask actually builds them.
+            #
+            # Without this, multi-layer recipes have to duplicate every
+            # package across two source-of-truth lists: once in OCI_LAYERS
+            # (used at layer-assembly time) and once in IMAGE_INSTALL (to
+            # trigger the build via do_rootfs). Any drift between the two
+            # silently breaks builds at layer-assembly time when the
+            # missing package isn't in DEPLOY_DIR_*PK.
+            #
+            # We append rather than replace: a recipe is still free to add
+            # IMAGE_INSTALL entries that aren't named in OCI_LAYERS (e.g.
+            # for rootfs-only postprocess fixups that don't land in any
+            # final layer).
             all_packages = set()
             for layer_def in oci_layers.split():
                 parts = layer_def.split(':')
@@ -383,9 +395,9 @@ python __anonymous() {
                         all_packages.add(pkg)
 
             if all_packages:
-                # Note: Packages need to be in IMAGE_INSTALL to trigger builds
-                # via do_rootfs recrdeptask. We just log which packages we found.
-                bb.debug(1, f"OCI multi-layer: Found packages in OCI_LAYERS: {' '.join(all_packages)}")
+                d.appendVar('IMAGE_INSTALL', ' ' + ' '.join(sorted(all_packages)))
+                bb.debug(1, "OCI multi-layer: auto-added to IMAGE_INSTALL: "
+                            + ' '.join(sorted(all_packages)))
 
     # Resolve base image and set up dependencies
     if base_image:
