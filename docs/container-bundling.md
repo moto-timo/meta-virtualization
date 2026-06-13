@@ -374,6 +374,57 @@ Install in your host image:
     IMAGE_INSTALL:append:pn-container-image-host = " my-bundle"
 
 
+Acknowledging Third-Party Container Licenses
+--------------------------------------------
+
+Every fetch of a remote container emits a build-time warning to remind
+integrators that they are shipping content they did not build from source:
+
+    WARNING: Fetching third-party container: docker.io/library/alpine
+             Ensure you have rights to redistribute this container in your
+             image. Check the container's license terms before distribution.
+             To acknowledge this container and silence this warning
+             (downgrades to a bb.note for build-log/SBOM audit), add to
+             local.conf or your distro config:
+               CONTAINER_FLAGS_ACCEPTED += "docker.io/library/alpine"
+
+Once you have reviewed the container's license and confirmed redistribution
+rights, add the URL to `CONTAINER_FLAGS_ACCEPTED` in `local.conf` or your
+distro config:
+
+    CONTAINER_FLAGS_ACCEPTED += "docker.io/library/alpine"
+    CONTAINER_FLAGS_ACCEPTED += "docker.io/library/busybox"
+
+Subsequent builds demote the warning to a `bb.note`, which is suppressed
+from normal build output but still recorded in `bitbake-cookerdaemon.log`
+and the recipe's task log:
+
+    NOTE: Fetching third-party container (license acknowledged via
+          CONTAINER_FLAGS_ACCEPTED): docker.io/library/alpine
+
+The note is intentionally not silent — it preserves the audit trail for
+SBOM tools and distro release reviews while removing the visible
+"WARNING" line from clean builds.
+
+### Matching rules
+
+- URLs in `CONTAINER_FLAGS_ACCEPTED` are matched against both the full URL
+  (with `:tag` or `@digest`) and the bare URL with tag/digest stripped.
+  Accepting `docker.io/library/alpine` covers `alpine:3.19`, `alpine:3.20`,
+  any `alpine@sha256:...`, etc.
+- The `*` wildcard accepts every third-party container in the build.
+  Convenient for distros that have a standing license-review process,
+  riskier as a casual opt-in.
+
+### Where to set it
+
+Acknowledgement belongs in the **integration layer** — `local.conf`,
+distro config, or an image recipe that gathers multiple bundles. Recipe
+authors should not pre-accept the containers their own recipe bundles;
+that defeats the warning's purpose by hiding the license question from
+the integrator who has to make the call.
+
+
 Container Autostart
 -------------------
 
