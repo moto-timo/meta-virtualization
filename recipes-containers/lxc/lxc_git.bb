@@ -39,7 +39,6 @@ RDEPENDS:${PN}-networking += "iptables"
 SRC_URI = "git://github.com/lxc/lxc.git;branch=main;protocol=https \
 	file://lxc-1.0.0-disable-udhcp-from-busybox-template.patch \
 	file://run-ptest \
-	file://templates-actually-create-DOWNLOAD_TEMP-directory.patch \
 	file://template-make-busybox-template-compatible-with-core-.patch \
 	file://templates-use-curl-instead-of-wget.patch \
 	file://0001-download-don-t-try-compatbility-index.patch \
