@@ -32,6 +32,17 @@ RDEPENDS:${PN} = " \
 
 RDEPENDS:${PN}:append:libc-glibc = " glibc-utils"
 
+# Soft-pull the layer's own sub-packages so a default `lxc` install lands a
+# functional LXC. Without networking, lxc-net.service is missing and lxcbr0
+# never comes up, so any container whose config references lxcbr0 (the
+# download template's default) fails to start with:
+#   network.c: netdev_configure_server_veth: Failed to attach "vethXXX" to
+#   bridge "lxcbr0", bridge interface doesn't exist
+# Without templates, lxc-create --template <foo> has no template scripts
+# to invoke. Users who genuinely don't want either can drop them with
+# BAD_RECOMMENDATIONS.
+RRECOMMENDS:${PN} += "${PN}-networking ${PN}-templates"
+
 RDEPENDS:${PN}-ptest += "file make gmp nettle gnutls bash libgcc"
 
 RDEPENDS:${PN}-networking += "iptables"
