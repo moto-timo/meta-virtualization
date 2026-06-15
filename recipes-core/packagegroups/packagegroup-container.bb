@@ -31,6 +31,8 @@ RDEPENDS:${PN} = " \
 
 RDEPENDS:packagegroup-lxc = " \
     lxc \
+    lxc-networking \
+    lxc-templates \
 "
 
 RDEPENDS:packagegroup-docker = " \
