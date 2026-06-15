@@ -6,8 +6,9 @@ LXC runtime tests — boot container-image-host with lxc installed and
 exercise the LXC command-line lifecycle (create, start, attach, stop,
 destroy).
 
-The tests build container-image-host with CONTAINER_IMAGE_HOST_EXTRA_INSTALL
-including lxc. No local.conf changes needed.
+The tests build container-image-host with CONTAINER_PROFILE=lxc, which
+pulls in packagegroup-lxc (lxc + lxc-networking + lxc-templates). No
+local.conf changes needed.
 
 The download-template regression check (TestLxcDownloadTemplate) exists
 specifically to catch the class of bug reported on the meta-virt list
@@ -87,11 +88,13 @@ def _run_bitbake(build_dir, recipe, extra_vars=None, timeout=3600):
 
 @pytest.fixture(scope="module")
 def lxc_image(request):
-    """Build container-image-host with lxc included.
+    """Build container-image-host with the lxc container profile.
 
-    Uses CONTAINER_IMAGE_HOST_EXTRA_INSTALL to add the lxc package without
-    needing to touch local.conf or invent a dedicated container-host-lxc
-    profile fragment.
+    CONTAINER_PROFILE=lxc resolves via conf/distro/include/meta-virt-container-lxc.inc
+    to VIRTUAL-RUNTIME_container_engine=lxc, which container-image-host.bb
+    treats as a signal to install packagegroup-lxc (lxc + lxc-networking
+    + lxc-templates). Same mechanism the incus / podman / k3s profiles
+    use, so the test exercises the same code path real users would take.
     """
     poky_dir = Path(request.config.getoption("--poky-dir"))
     bd = request.config.getoption("--build-dir")
@@ -99,7 +102,7 @@ def lxc_image(request):
     result = _run_bitbake(
         build_dir, "container-image-host",
         extra_vars={
-            "CONTAINER_IMAGE_HOST_EXTRA_INSTALL": "lxc",
+            "CONTAINER_PROFILE": "lxc",
         },
     )
     if result.returncode != 0:
@@ -123,13 +126,30 @@ def lxc_qemu(request, lxc_image):
         f"{kvm_opt} qemuparams=\"-m 4096\""
     )
 
+    # Route runqemu's full output to /tmp so a boot failure leaves a
+    # diagnosable trail. pexpect's default 100-char-truncated "before"
+    # buffer hides the actual error from pytest's traceback otherwise.
+    log_path = Path(tempfile.gettempdir()) / "test_lxc_runtime-runqemu.log"
+    log_path.write_text("")  # truncate from any prior run
+    log_fp = log_path.open("w")
     child = pexpect.spawn(
         f"bash -c 'cd {poky_dir} && source oe-init-build-env {builddir} "
         f">/dev/null 2>&1 && {cmd}'",
-        timeout=boot_timeout, encoding="utf-8", logfile=None,
+        timeout=boot_timeout, encoding="utf-8", logfile=log_fp,
     )
 
-    child.expect(r"login:", timeout=boot_timeout)
+    try:
+        child.expect(r"login:", timeout=boot_timeout)
+    except pexpect.EOF:
+        log_fp.flush()
+        log_fp.close()
+        # Drop the last 60 lines of the runqemu log into the failure
+        # message so the actual cause is visible without grepping.
+        tail = "\n".join(log_path.read_text().splitlines()[-60:])
+        pytest.fail(
+            f"runqemu exited before login prompt. Full log at {log_path}.\n"
+            f"Tail:\n{tail}"
+        )
     child.sendline("root")
     child.expect(r"root@.*[:~#]", timeout=30)
 
