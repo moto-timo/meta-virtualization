@@ -265,21 +265,78 @@ class TestLxcContainerLifecycle:
     NAME = "test-lxc-lifecycle"
 
     def test_create_alpine_via_download(self, lxc_qemu):
+        # Best-effort cleanup of a stale container from a previous run that
+        # was killed before test_destroy got to run. Ignore rc — the common
+        # case is "no such container" and that's exactly what we want.
+        run_cmd(lxc_qemu,
+                f"lxc-destroy --force --name {self.NAME} >/dev/null 2>&1 || true",
+                timeout=30)
         cmd = (
             f"lxc-create --name {self.NAME} --template download -- "
             f"--dist alpine --release edge --arch amd64"
         )
         output, rc = run_cmd(lxc_qemu, cmd, timeout=600)
-        if rc != 0:
+        if rc == 0:
+            return
+        # Only skip when the failure is clearly the download / network path.
+        # "Container already exists" or other config errors must fail loudly
+        # — silently skipping them masks real regressions (the whole point
+        # of the bug Ferry reported).
+        network_markers = (
+            "Failed to download",
+            "couldn't be found",
+            "bad address",
+            "Temporary failure in name resolution",
+            "Network is unreachable",
+            "No route to host",
+            "Connection refused",
+            "Connection timed out",
+            "wget: error getting response",
+            "wget: can't connect",
+            "Unable to fetch GPG key",
+        )
+        if any(m in output for m in network_markers):
             pytest.skip(
-                f"lxc-create download failed (likely network unreachable): "
+                f"lxc-create download failed (network unreachable): "
                 f"{output[:400]}"
             )
+        pytest.fail(
+            f"lxc-create failed (rc={rc}) with non-network error:\n{output}"
+        )
 
     def test_start(self, lxc_qemu):
-        output, rc = run_cmd(lxc_qemu, f"lxc-start --name {self.NAME}",
-                             timeout=60)
-        assert rc == 0, f"lxc-start failed: {output}"
+        # Pre-flight environment checks. lxc-start has a habit of aborting
+        # with a generic "Received container state ABORTING" message that
+        # gives no hint of which precondition (bridge up, lxc-net active,
+        # kernel features present) actually failed. Surface each piece in
+        # the failure path so post-mortem doesn't require re-booting and
+        # poking around by hand.
+        net_out, _ = run_cmd(lxc_qemu, "systemctl is-active lxc-net.service")
+        bridge_out, bridge_rc = run_cmd(
+            lxc_qemu, "ip -o link show lxcbr0 2>&1 | head -1")
+
+        # Capture lxc-start's own log alongside the user-visible stderr so
+        # a failure message contains the real abort cause without needing
+        # a re-run. The `( … exit $LXC_RC )` subshell preserves lxc-start's
+        # exit code for the marker-based run_cmd harness — `exit` outside
+        # a subshell would kill the guest's login shell, which respawns
+        # getty and breaks every subsequent test in the suite.
+        output, rc = run_cmd(
+            lxc_qemu,
+            f"lxc-start --name {self.NAME} --logfile /tmp/lxc-start.log "
+            f"--logpriority DEBUG 2>&1 ; LXC_RC=$? ; "
+            f"echo '--- lxc-start rc=' $LXC_RC ' ---' ; "
+            f"echo '--- lxc-start.log tail ---' ; "
+            f"tail -40 /tmp/lxc-start.log ; "
+            f"( exit $LXC_RC )",
+            timeout=90,
+        )
+        assert rc == 0, (
+            f"lxc-start failed.\n"
+            f"  lxc-net.service: {net_out!r}\n"
+            f"  lxcbr0 link (rc={bridge_rc}): {bridge_out!r}\n"
+            f"  full output:\n{output}"
+        )
         # Give the container a moment to come up
         run_cmd(lxc_qemu, "sleep 3")
 
