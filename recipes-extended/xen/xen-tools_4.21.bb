@@ -7,7 +7,6 @@ SRC_URI = " \
     git://xenbits.xen.org/xen.git;branch=${XEN_BRANCH} \
     file://0001-python-pygrub-pass-DISTUTILS-xen-4.19.patch \
     file://0001-libxl_nocpuid-fix-build-error.patch \
-    file://0001-tools-libxl-Fix-build-with-NOCPUID-and-json-c.patch \
     file://0001-tests-vpci-drop-explicit-g-use.patch \
     "
 
