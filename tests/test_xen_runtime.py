@@ -761,3 +761,201 @@ class TestXenVxnImageCache:
             f"Expected OCI config in inspect output:\n{output}"
         assert '/bin/sh' in output, \
             f"Expected /bin/sh in alpine config:\n{output}"
+
+
+# ============================================================================
+# Helpers for Docker/Podman/vdkr/vpdmn backend tests
+# ============================================================================
+
+def _docker_available(xen_session):
+    """Check Docker is installed and running, skip if not."""
+    check = xen_session.run_command(
+        'which docker 2>/dev/null || echo NOT_FOUND')
+    if 'NOT_FOUND' in check:
+        pytest.skip("docker not installed in image")
+    svc = xen_session.run_command(
+        'systemctl is-active docker 2>/dev/null || echo INACTIVE')
+    if 'INACTIVE' in svc or 'inactive' in svc:
+        pytest.skip("docker service not running")
+
+
+def _podman_available(xen_session):
+    """Check Podman is installed, skip if not."""
+    check = xen_session.run_command(
+        'which podman 2>/dev/null || echo NOT_FOUND')
+    if 'NOT_FOUND' in check:
+        pytest.skip("podman not installed in image")
+
+
+def _vdkr_available(xen_session):
+    """Check vdkr is installed, skip if not."""
+    check = xen_session.run_command(
+        'which vdkr 2>/dev/null || echo NOT_FOUND')
+    if 'NOT_FOUND' in check:
+        pytest.skip("vdkr not installed in image")
+
+
+def _vpdmn_available(xen_session):
+    """Check vpdmn is installed, skip if not."""
+    check = xen_session.run_command(
+        'which vpdmn 2>/dev/null || echo NOT_FOUND')
+    if 'NOT_FOUND' in check:
+        pytest.skip("vpdmn not installed in image")
+
+
+# ============================================================================
+# TestXenDockerBackend — Phase 4.2: Docker with vxn-oci-runtime
+# ============================================================================
+
+@pytest.mark.boot
+@pytest.mark.network
+class TestXenDockerBackend:
+    """
+    Test Docker using vxn-oci-runtime as its default OCI runtime.
+
+    Requires vxn-docker-config (daemon.json with vxn as default runtime)
+    and docker-moby installed in the image. Containers need --network=none
+    because Docker bridge networking is incompatible with VM runtimes.
+    """
+
+    def test_docker_vxn_runtime_registered(self, xen_session):
+        """Docker reports vxn as default runtime."""
+        _docker_available(xen_session)
+
+        output = xen_session.run_command('docker info 2>&1 | grep -i runtime')
+        assert 'vxn' in output, \
+            f"vxn runtime not in docker info:\n{output}"
+        assert 'Default Runtime: vxn' in output or 'default-runtime' in output, \
+            f"vxn not set as default runtime:\n{output}"
+
+    def test_docker_run_echo(self, xen_session):
+        """docker run --network=none executes in a Xen DomU."""
+        _docker_available(xen_session)
+        _check_xen_free_memory(xen_session)
+
+        output = xen_session.run_command(
+            'docker run --network=none --rm alpine echo hello-from-docker 2>&1',
+            timeout=120)
+        assert 'hello-from-docker' in output, \
+            f"Expected 'hello-from-docker':\n{output}"
+
+    def test_docker_run_os_release(self, xen_session):
+        """docker run sees the Alpine container filesystem."""
+        _docker_available(xen_session)
+        _check_xen_free_memory(xen_session)
+
+        output = xen_session.run_command(
+            'docker run --network=none --rm alpine cat /etc/os-release 2>&1',
+            timeout=120)
+        assert 'Alpine' in output, \
+            f"Expected Alpine in output:\n{output}"
+
+
+# ============================================================================
+# TestXenPodmanBackend — Phase 4.2: Podman with vxn-oci-runtime
+# ============================================================================
+
+@pytest.mark.boot
+@pytest.mark.network
+class TestXenPodmanBackend:
+    """
+    Test Podman using vxn-oci-runtime as its default OCI runtime.
+
+    Requires vxn-podman-config (containers.conf.d with vxn runtime)
+    and podman installed in the image. Containers need --network=none
+    because Podman bridge networking is incompatible with VM runtimes.
+    """
+
+    def test_podman_run_echo(self, xen_session):
+        """podman run --network=none executes in a Xen DomU."""
+        _podman_available(xen_session)
+        _check_xen_free_memory(xen_session)
+
+        output = xen_session.run_command(
+            'podman run --network=none --rm alpine echo hello-from-podman 2>&1',
+            timeout=120)
+        assert 'hello-from-podman' in output, \
+            f"Expected 'hello-from-podman':\n{output}"
+
+    def test_podman_run_os_release(self, xen_session):
+        """podman run sees the Alpine container filesystem."""
+        _podman_available(xen_session)
+        _check_xen_free_memory(xen_session)
+
+        output = xen_session.run_command(
+            'podman run --network=none --rm alpine cat /etc/os-release 2>&1',
+            timeout=120)
+        assert 'Alpine' in output, \
+            f"Expected Alpine in output:\n{output}"
+
+
+# ============================================================================
+# TestXenVdkr — Phase 4.2: vdkr Dom0 frontend
+# ============================================================================
+
+@pytest.mark.boot
+@pytest.mark.network
+class TestXenVdkr:
+    """
+    Test vdkr (Docker CLI wrapper for Xen Dom0).
+
+    vdkr auto-detects Xen and uses vxn infrastructure directly.
+    Unlike Docker/Podman, no --network=none is needed — vdkr manages
+    networking independently via xenbr0.
+    """
+
+    def test_vdkr_run_echo(self, xen_session):
+        """vdkr run executes in a Xen DomU."""
+        _vdkr_available(xen_session)
+        _check_xen_free_memory(xen_session)
+
+        output = xen_session.run_command(
+            'vdkr run --rm alpine echo hello-from-vdkr 2>&1', timeout=120)
+        assert 'hello-from-vdkr' in output, \
+            f"Expected 'hello-from-vdkr':\n{output}"
+
+    def test_vdkr_run_os_release(self, xen_session):
+        """vdkr run sees the Alpine container filesystem."""
+        _vdkr_available(xen_session)
+        _check_xen_free_memory(xen_session)
+
+        output = xen_session.run_command(
+            'vdkr run --rm alpine cat /etc/os-release 2>&1', timeout=120)
+        assert 'Alpine' in output, \
+            f"Expected Alpine in output:\n{output}"
+
+
+# ============================================================================
+# TestXenVpdmn — Phase 4.2: vpdmn Dom0 frontend
+# ============================================================================
+
+@pytest.mark.boot
+@pytest.mark.network
+class TestXenVpdmn:
+    """
+    Test vpdmn (Podman CLI wrapper for Xen Dom0).
+
+    vpdmn auto-detects Xen and uses vxn infrastructure directly.
+    Unlike Docker/Podman, no --network=none is needed — vpdmn manages
+    networking independently via xenbr0.
+    """
+
+    def test_vpdmn_run_echo(self, xen_session):
+        """vpdmn run executes in a Xen DomU."""
+        _vpdmn_available(xen_session)
+        _check_xen_free_memory(xen_session)
+
+        output = xen_session.run_command(
+            'vpdmn run --rm alpine echo hello-from-vpdmn 2>&1', timeout=120)
+        assert 'hello-from-vpdmn' in output, \
+            f"Expected 'hello-from-vpdmn':\n{output}"
+
+    def test_vpdmn_run_os_release(self, xen_session):
+        """vpdmn run sees the Alpine container filesystem."""
+        _vpdmn_available(xen_session)
+        _check_xen_free_memory(xen_session)
+
+        output = xen_session.run_command(
+            'vpdmn run --rm alpine cat /etc/os-release 2>&1', timeout=120)
+        assert 'Alpine' in output, \
+            f"Expected Alpine in output:\n{output}"
