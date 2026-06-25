@@ -451,3 +451,313 @@ class TestXenContainerd:
             timeout=120)
         assert 'hello' in output, \
             f"Expected 'hello' in vctr output:\n{output}"
+
+
+def _vxn_available(xen_session):
+    """Check vxn is installed, skip if not."""
+    check = xen_session.run_command('which vxn 2>/dev/null || echo NOT_FOUND')
+    if 'NOT_FOUND' in check:
+        pytest.skip("vxn not installed in image")
+
+
+def _vxn_cleanup_container(xen_session, name, timeout=30):
+    """Best-effort cleanup of a vxn container (stop + rm)."""
+    xen_session.run_command(f'vxn stop {name} 2>/dev/null || true', timeout=timeout)
+    xen_session.run_command(f'vxn rm {name} 2>/dev/null || true', timeout=timeout)
+
+
+# ============================================================================
+# TestXenVxnLifecycle — Phase 2: per-container DomU lifecycle
+# ============================================================================
+
+@pytest.mark.boot
+@pytest.mark.network
+class TestXenVxnLifecycle:
+    """
+    Test vxn per-container DomU lifecycle (Phase 2).
+
+    Each test creates a dedicated DomU via 'vxn run -d', exercises one
+    lifecycle verb, and cleans up. The key regression target is the
+    entrypoint exit-code monitor: busybox ash's wait(1) on a non-child
+    PID returned 127 immediately, causing false 'Exited (127)' status.
+    """
+
+    def test_run_detached_shows_running(self, xen_session):
+        """vxn run -d starts a container that reports Running status."""
+        _vxn_available(xen_session)
+        _check_xen_free_memory(xen_session)
+        name = "lifecycle-run"
+        _vxn_cleanup_container(xen_session, name)
+
+        try:
+            output = xen_session.run_command(
+                f'vxn run -d --name {name} alpine sleep 300 2>&1', timeout=120)
+            assert name in output, \
+                f"Container name not in run output:\n{output}"
+
+            ps_out = xen_session.run_command('vxn ps 2>&1', timeout=30)
+            assert name in ps_out, \
+                f"Container {name} not in vxn ps:\n{ps_out}"
+            assert 'Running' in ps_out, \
+                f"Expected 'Running' status (got Exited — wait-in-subshell bug?):\n{ps_out}"
+            assert 'Exited' not in ps_out, \
+                f"Container shows Exited prematurely:\n{ps_out}"
+        finally:
+            _vxn_cleanup_container(xen_session, name)
+
+    def test_exec_in_container(self, xen_session):
+        """vxn exec runs commands inside the container chroot."""
+        _vxn_available(xen_session)
+        _check_xen_free_memory(xen_session)
+        name = "lifecycle-exec"
+        _vxn_cleanup_container(xen_session, name)
+
+        try:
+            xen_session.run_command(
+                f'vxn run -d --name {name} alpine sleep 300 2>&1', timeout=120)
+
+            output = xen_session.run_command(
+                f'vxn exec {name} cat /etc/os-release 2>&1', timeout=30)
+            assert 'Alpine' in output, \
+                f"Expected Alpine in exec output:\n{output}"
+        finally:
+            _vxn_cleanup_container(xen_session, name)
+
+    def test_exec_sees_container_filesystem(self, xen_session):
+        """vxn exec sees the container rootfs, not the DomU host rootfs."""
+        _vxn_available(xen_session)
+        _check_xen_free_memory(xen_session)
+        name = "lifecycle-fs"
+        _vxn_cleanup_container(xen_session, name)
+
+        try:
+            xen_session.run_command(
+                f'vxn run -d --name {name} alpine sleep 300 2>&1', timeout=120)
+
+            # Alpine has /etc/alpine-release; the DomU (vdkr rootfs) does not
+            output = xen_session.run_command(
+                f'vxn exec {name} cat /etc/alpine-release 2>&1', timeout=30)
+            assert output.strip(), \
+                f"Expected Alpine version string:\n{output}"
+
+            # Should NOT see vxn-init.sh (that's on the DomU host, not in chroot)
+            output = xen_session.run_command(
+                f'vxn exec {name} ls /vxn-init.sh 2>&1', timeout=30)
+            assert 'No such file' in output, \
+                f"Container should not see DomU host files:\n{output}"
+        finally:
+            _vxn_cleanup_container(xen_session, name)
+
+    def test_logs_retrieves_entrypoint_output(self, xen_session):
+        """vxn logs returns entrypoint stdout."""
+        _vxn_available(xen_session)
+        _check_xen_free_memory(xen_session)
+        name = "lifecycle-logs"
+        _vxn_cleanup_container(xen_session, name)
+
+        try:
+            # Use echo so entrypoint produces output then exits
+            xen_session.run_command(
+                f'vxn run -d --name {name} alpine sh -c "echo log-test-marker; sleep 300" 2>&1',
+                timeout=120)
+            # Small delay for entrypoint to write output
+            time.sleep(2)
+            output = xen_session.run_command(
+                f'vxn logs {name} 2>&1', timeout=30)
+            assert 'log-test-marker' in output, \
+                f"Expected 'log-test-marker' in logs:\n{output}"
+        finally:
+            _vxn_cleanup_container(xen_session, name)
+
+    def test_stop_and_rm(self, xen_session):
+        """vxn stop + rm cleans up the container and its DomU."""
+        _vxn_available(xen_session)
+        _check_xen_free_memory(xen_session)
+        name = "lifecycle-stoprm"
+        _vxn_cleanup_container(xen_session, name)
+
+        try:
+            xen_session.run_command(
+                f'vxn run -d --name {name} alpine sleep 300 2>&1', timeout=120)
+
+            # Verify it's running
+            ps_out = xen_session.run_command('vxn ps 2>&1', timeout=30)
+            assert name in ps_out
+
+            # Stop
+            xen_session.run_command(
+                f'vxn stop {name} 2>&1', timeout=60)
+
+            # After stop, ps should show Exited or container should be gone
+            ps_out = xen_session.run_command('vxn ps 2>&1', timeout=30)
+            if name in ps_out:
+                assert 'Exited' in ps_out or 'Stopped' in ps_out, \
+                    f"Container should be stopped:\n{ps_out}"
+
+            # Remove
+            xen_session.run_command(
+                f'vxn rm {name} 2>&1', timeout=30)
+
+            # Should no longer appear in ps
+            ps_out = xen_session.run_command('vxn ps 2>&1', timeout=30)
+            assert name not in ps_out, \
+                f"Container should be gone after rm:\n{ps_out}"
+        finally:
+            _vxn_cleanup_container(xen_session, name)
+
+    def test_multiple_containers(self, xen_session):
+        """Multiple detached containers can run simultaneously."""
+        _vxn_available(xen_session)
+        _check_xen_free_memory(xen_session, min_mb=512)
+        names = ["lifecycle-multi1", "lifecycle-multi2"]
+        for n in names:
+            _vxn_cleanup_container(xen_session, n)
+
+        try:
+            for n in names:
+                xen_session.run_command(
+                    f'vxn run -d --name {n} alpine sleep 300 2>&1', timeout=120)
+
+            ps_out = xen_session.run_command('vxn ps 2>&1', timeout=30)
+            for n in names:
+                assert n in ps_out, \
+                    f"Container {n} not in vxn ps:\n{ps_out}"
+            assert ps_out.count('Running') >= 2, \
+                f"Expected at least 2 Running containers:\n{ps_out}"
+        finally:
+            for n in names:
+                _vxn_cleanup_container(xen_session, n)
+
+
+# ============================================================================
+# TestXenVxnMemres — Phase 3: persistent DomU (memres)
+# ============================================================================
+
+@pytest.mark.boot
+@pytest.mark.network
+class TestXenVxnMemres:
+    """
+    Test vxn memres persistent DomU mode (Phase 3).
+
+    Memres keeps a DomU running between containers — subsequent runs
+    hot-plug the container disk instead of booting a fresh guest.
+    """
+
+    def test_memres_start_status_stop(self, xen_session):
+        """memres start/status/stop lifecycle."""
+        _vxn_available(xen_session)
+        _check_xen_free_memory(xen_session)
+
+        # Clean up any stale memres
+        xen_session.run_command('vxn memres stop 2>/dev/null || true', timeout=30)
+
+        try:
+            output = xen_session.run_command(
+                'vxn memres start 2>&1', timeout=120)
+            assert 'Daemon running' in output or 'Socket' in output, \
+                f"memres start failed:\n{output}"
+
+            status = xen_session.run_command(
+                'vxn memres status 2>&1', timeout=30)
+            assert 'Daemon running' in status, \
+                f"memres not running:\n{status}"
+
+            # list should show the memres DomU
+            list_out = xen_session.run_command(
+                'vxn memres list 2>&1', timeout=30)
+            assert 'vxn-' in list_out, \
+                f"memres domain not in list:\n{list_out}"
+        finally:
+            xen_session.run_command('vxn memres stop 2>/dev/null || true', timeout=30)
+
+    def test_memres_run_container(self, xen_session):
+        """Containers run via memres (hot-plug disk, no fresh boot)."""
+        _vxn_available(xen_session)
+        _check_xen_free_memory(xen_session)
+
+        xen_session.run_command('vxn memres stop 2>/dev/null || true', timeout=30)
+
+        try:
+            xen_session.run_command(
+                'vxn memres start 2>&1', timeout=120)
+
+            output = xen_session.run_command(
+                'vxn run --rm alpine echo hello-from-memres 2>&1', timeout=120)
+            assert 'hello-from-memres' in output, \
+                f"Expected 'hello-from-memres':\n{output}"
+
+            # Run a second container to verify memres reuse
+            output2 = xen_session.run_command(
+                'vxn run --rm alpine cat /etc/os-release 2>&1', timeout=120)
+            assert 'Alpine' in output2, \
+                f"Expected Alpine in second memres run:\n{output2}"
+        finally:
+            xen_session.run_command('vxn memres stop 2>/dev/null || true', timeout=30)
+
+
+# ============================================================================
+# TestXenVxnImageCache — Phase 5: host-side OCI image cache
+# ============================================================================
+
+@pytest.mark.boot
+@pytest.mark.network
+class TestXenVxnImageCache:
+    """
+    Test vxn host-side OCI image cache (Phase 5).
+
+    The cache at ~/.vxn/images/ provides pull/images/rmi/tag/inspect
+    commands independent of any container runtime.
+    """
+
+    def test_pull_and_list(self, xen_session):
+        """vxn pull downloads an image and vxn images lists it."""
+        _vxn_available(xen_session)
+
+        output = xen_session.run_command(
+            'vxn pull alpine 2>&1', timeout=120)
+        assert 'Pulled' in output or 'alpine' in output.lower(), \
+            f"Pull failed:\n{output}"
+
+        images = xen_session.run_command('vxn images 2>&1', timeout=30)
+        assert 'alpine' in images, \
+            f"alpine not in images list:\n{images}"
+
+    def test_tag_and_rmi(self, xen_session):
+        """vxn tag creates a new ref; vxn rmi removes it."""
+        _vxn_available(xen_session)
+
+        # Ensure alpine is cached
+        xen_session.run_command('vxn pull alpine 2>&1', timeout=120)
+
+        # Tag
+        output = xen_session.run_command(
+            'vxn tag alpine test-tag:v1 2>&1', timeout=30)
+        assert 'Tagged' in output, \
+            f"Tag failed:\n{output}"
+
+        images = xen_session.run_command('vxn images 2>&1', timeout=30)
+        assert 'test-tag' in images, \
+            f"test-tag not in images:\n{images}"
+
+        # Remove the tag
+        output = xen_session.run_command(
+            'vxn rmi test-tag:v1 2>&1', timeout=30)
+        assert 'Removed' in output, \
+            f"rmi failed:\n{output}"
+
+        images = xen_session.run_command('vxn images 2>&1', timeout=30)
+        assert 'test-tag' not in images, \
+            f"test-tag still in images after rmi:\n{images}"
+
+    def test_inspect(self, xen_session):
+        """vxn image inspect shows OCI config."""
+        _vxn_available(xen_session)
+
+        xen_session.run_command('vxn pull alpine 2>&1', timeout=120)
+
+        output = xen_session.run_command(
+            'vxn image inspect alpine 2>&1', timeout=30)
+        assert 'Cmd' in output, \
+            f"Expected OCI config in inspect output:\n{output}"
+        assert '/bin/sh' in output, \
+            f"Expected /bin/sh in alpine config:\n{output}"
