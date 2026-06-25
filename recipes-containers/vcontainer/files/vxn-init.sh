@@ -381,12 +381,19 @@ exec_in_container() {
 
 # Execute a command inside the container rootfs in the background.
 # Used by detached mode: start entrypoint, then enter daemon loop.
+#
+# The entrypoint and its exit-code monitor run in a single background
+# subshell so that busybox ash's wait(1) can retrieve the exit status.
+# ash can only wait for direct children — starting the chroot in the
+# parent shell and waiting in a sibling subshell returns 127 immediately
+# (POSIX: "behavior is unspecified" for non-children).
 exec_in_container_background() {
     local rootfs="$1"
     local cmd="$2"
     local workdir="${OCI_WORKDIR:-/}"
 
-    # Mount essential filesystems inside the container rootfs
+    # Mount essential filesystems inside the container rootfs (synchronous —
+    # daemon loop exec path needs these mounts immediately)
     mkdir -p "$rootfs/proc" "$rootfs/sys" "$rootfs/dev" "$rootfs/tmp" 2>/dev/null || true
     mount -t proc proc "$rootfs/proc" 2>/dev/null || true
     mount -t sysfs sysfs "$rootfs/sys" 2>/dev/null || true
@@ -398,12 +405,27 @@ exec_in_container_background() {
         cp /etc/resolv.conf "$rootfs/etc/resolv.conf" 2>/dev/null || true
     fi
 
-    # Run in background, save PID
-    # Note: no 'exec' — compound commands (&&, ||, ;) need the wrapper shell
-    chroot "$rootfs" /bin/sh -c "cd '$workdir' 2>/dev/null; $cmd" > /tmp/entrypoint.log 2>&1 &
-    ENTRYPOINT_PID=$!
-    echo "$ENTRYPOINT_PID" > /tmp/entrypoint.pid
-    log "Entrypoint PID: $ENTRYPOINT_PID"
+    # Start entrypoint + exit-code monitor as a single background subshell.
+    # The chroot process is a direct child of this subshell, so wait works.
+    (
+        chroot "$rootfs" /bin/sh -c "cd '$workdir' 2>/dev/null; $cmd" \
+            > /tmp/entrypoint.log 2>&1 &
+        EP_PID=$!
+        echo "$EP_PID" > /tmp/entrypoint.pid
+        log "Entrypoint PID: $EP_PID"
+
+        wait $EP_PID 2>/dev/null
+        EP_EXIT=$?
+        echo "$EP_EXIT" > /tmp/entrypoint.exit_code
+        log "Entrypoint exited (code: $EP_EXIT), grace period: ${ENTRYPOINT_GRACE_PERIOD}s"
+        if [ "$ENTRYPOINT_GRACE_PERIOD" -gt 0 ] 2>/dev/null; then
+            sleep "$ENTRYPOINT_GRACE_PERIOD"
+        fi
+        log "Grace period expired, shutting down"
+        reboot -f
+    ) &
+    ENTRYPOINT_MONITOR_PID=$!
+    log "Entrypoint monitor started (PID: $ENTRYPOINT_MONITOR_PID)"
 }
 
 # ============================================================================
@@ -694,25 +716,6 @@ if [ "$RUNTIME_DAEMON" = "1" ]; then
         if [ -n "$EXEC_CMD" ] && [ -n "$CONTAINER_ROOT" ]; then
             log "Starting entrypoint in background: $EXEC_CMD"
             exec_in_container_background "$CONTAINER_ROOT" "$EXEC_CMD"
-
-            # Monitor entrypoint: when it exits, record exit code and
-            # schedule DomU shutdown after grace period.
-            # During the grace period, exec and logs still work.
-            if [ -n "$ENTRYPOINT_PID" ]; then
-                (
-                    wait $ENTRYPOINT_PID 2>/dev/null
-                    EP_EXIT=$?
-                    echo "$EP_EXIT" > /tmp/entrypoint.exit_code
-                    log "Entrypoint exited (code: $EP_EXIT), grace period: ${ENTRYPOINT_GRACE_PERIOD}s"
-                    if [ "$ENTRYPOINT_GRACE_PERIOD" -gt 0 ] 2>/dev/null; then
-                        sleep "$ENTRYPOINT_GRACE_PERIOD"
-                    fi
-                    log "Grace period expired, shutting down"
-                    reboot -f
-                ) &
-                ENTRYPOINT_MONITOR_PID=$!
-                log "Entrypoint monitor started (PID: $ENTRYPOINT_MONITOR_PID)"
-            fi
         fi
     fi
     run_vxn_daemon_mode
