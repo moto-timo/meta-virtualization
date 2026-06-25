@@ -80,6 +80,7 @@ B = "${WORKDIR}/build"
 RDEPENDS:${PN} = "\
     xen-tools-xl \
     xen-tools-xenstore \
+    xen-tools-xen-9pfsd \
     bash \
     jq \
     socat \
