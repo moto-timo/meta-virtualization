@@ -286,7 +286,7 @@ FILES:${PN}-podman-config = "${sysconfdir}/containers/containers.conf.d/50-vxn-r
 
 RDEPENDS:${PN}-vdkr = "${PN} bash"
 RDEPENDS:${PN}-vpdmn = "${PN} bash"
-RDEPENDS:${PN}-docker-config = "${PN} docker"
+RDEPENDS:${PN}-docker-config = "${PN} docker virtual-runc"
 RDEPENDS:${PN}-podman-config = "${PN} podman"
 
 # daemon.json conflicts with docker-registry-config (only one provider)
