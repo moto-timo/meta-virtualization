@@ -93,7 +93,7 @@ BBMASK += "meta-networking/recipes-(?!filter|support|connectivity/mosquitto)"
 BBMASK += "meta-openstack/recipes-dbs/postgresql/"
 BBMASK += "meta-oe/dynamic-layers/networking-layer/recipes-core/"
 BBMASK += "meta-openstack/recipes-extended/libvirt/"
-BBMASK += "meta-webserver/recipes-(?!httpd/nginx)"
+BBMASK += "meta-webserver/recipes-(?!httpd/(nginx|caddy))"
 # To satisfy RDEPENDS for packagegroup-yocto-builder-extras in mc:container-*
 BBMASK += "meta-python/recipes-devtools/python/python3-(?!pexpect|ptyprocess)"
 BBMASK += "meta-oe/dynamic-layers/meta-python/recipes-core/packagegroups/"
