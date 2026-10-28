@@ -11,6 +11,7 @@ LIC_FILES_CHKSUM ?= "file://${COREBASE}/meta/COPYING.MIT;md5=3da9cfbcb788c80a038
 
 CONTAINER_IMAGES ?= "\
     container-base \
+    app-container-caddy \
     app-container-curl \
     app-container-mosquitto \
     app-container-nginx \
