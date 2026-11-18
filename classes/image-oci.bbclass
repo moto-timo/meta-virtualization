@@ -69,6 +69,14 @@ do_image_oci[depends] += "jq-native:do_populate_sysroot"
 # Package manager native tools for multi-layer mode with package installation
 OCI_PM_DEPENDS = "${@oci_get_pm_depends(d)}"
 do_image_oci[depends] += "${OCI_PM_DEPENDS}"
+# AI-generated (Claude Code, Claude Opus 5.5).
+# Multi-layer package layers are installed by RpmPM/OpkgPM into
+# ${WORKDIR}/oci-layer-rootfs/layer-N-<name> from do_image_oci, which runs
+# under pseudo. Like ${WORKDIR}/rootfs for do_rootfs, the layer rootfs must
+# be tracked by pseudo or dnf5/rpm6 cannot open the rpmdb in the installroot
+# ("rpmtsOpenDB failed: Invalid argument"). Same approach as image.bbclass
+# uses for MULTILIB_TEMP_ROOTFS.
+PSEUDO_INCLUDE_PATHS .= ",${WORKDIR}/oci-layer-rootfs"
 
 def oci_pkg_type(d):
     """Resolve IMAGE_PKGTYPE with a single, documented default.
