@@ -460,6 +460,83 @@ python __anonymous() {
 # This function uses the same package management infrastructure as do_rootfs,
 # ensuring consistency and maintainability.
 
+def oci_debug_rpmdb(d, layer_rootfs, layer_name, when):
+    """
+    DEBUG ONLY: dump the state dnf/rpm see when installing into a layer rootfs.
+
+    AI-generated (Claude Code, Claude Opus 5.5).
+
+    Emitted with bb.warn so it reaches the bitbake console (and so the
+    autobuilder stdio log), not only log.do_image_oci.
+    """
+    import os
+    import subprocess
+
+    lines = [f"OCI-DEBUG [{layer_name}] {when}: layer_rootfs={layer_rootfs}"]
+
+    # Environment dnf inherits (RpmPM._invoke_dnf sets RPM_ETCCONFIGDIR and
+    # XDG_CACHE_HOME in os.environ; the dnf wrapper adds RPM_CONFIGDIR).
+    for key in sorted(os.environ):
+        if key.startswith(('RPM_', 'PSEUDO', 'FAKEROOT', 'XDG_', 'SEQUOIA_')) \
+                or key in ('D', 'OFFLINE_ROOT', 'NATIVE_ROOT', 'INTERCEPT_DIR',
+                           'LD_PRELOAD', 'LD_LIBRARY_PATH', 'PATH'):
+            lines.append(f"  env {key}={os.environ[key]}")
+
+    # dnf wrapper, to see the RPM_CONFIGDIR it exports
+    dnf = bb.utils.which(os.getenv('PATH'), 'dnf')
+    lines.append(f"  dnf={dnf}")
+    if dnf:
+        try:
+            with open(dnf, errors='replace') as f:
+                for l in f:
+                    if 'export' in l or 'exec' in l:
+                        lines.append(f"    | {l.rstrip()}")
+        except OSError as e:
+            lines.append(f"    (cannot read dnf wrapper: {e})")
+
+    # Evaluate rpm macros the way dnf's librpm would: call rpm.real directly
+    # (the rpm wrapper forces RPM_ETCCONFIGDIR=${STAGING_DIR_NATIVE}, which
+    # dnf does not) with RPM_CONFIGDIR from the native sysroot and
+    # RPM_ETCCONFIGDIR pointing at the layer rootfs.
+    rpm = bb.utils.which(os.getenv('PATH'), 'rpm.real') or \
+          bb.utils.which(os.getenv('PATH'), 'rpm')
+    rpm_configdir = os.path.join(d.getVar('STAGING_LIBDIR_NATIVE'), 'rpm')
+    lines.append(f"  rpm={rpm} RPM_CONFIGDIR={rpm_configdir} "
+                 f"(macros exists: {os.path.exists(os.path.join(rpm_configdir, 'macros'))})")
+    if rpm:
+        env = dict(os.environ)
+        env['RPM_CONFIGDIR'] = rpm_configdir
+        env['RPM_ETCCONFIGDIR'] = layer_rootfs
+        cmd = [rpm, '--root', layer_rootfs]
+        for macro in ('%{_dbpath}', '%{_dbbackend}', '%{_usr}', '%{_var}',
+                      '%{_sharedstatedir}', '%{_rpmconfigdir}'):
+            cmd += ['--eval', f'{macro}={macro}']
+        try:
+            out = subprocess.run(cmd, env=env, stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT, text=True, timeout=60)
+            lines.append(f"  rpm --eval (rc={out.returncode}):")
+            lines += [f"    | {l}" for l in out.stdout.splitlines()]
+        except Exception as e:
+            lines.append(f"  rpm --eval failed: {e}")
+
+    # What exists in the layer rootfs where rpm/dnf keep state
+    for sub in ('', 'etc', 'etc/rpm', 'etc/dnf', 'var', 'var/lib', 'var/lib/rpm',
+                'usr/lib/sysimage', 'usr/lib/sysimage/rpm',
+                'usr/lib/sysimage/libdnf5', 'var/cache/libdnf5'):
+        p = os.path.join(layer_rootfs, sub)
+        if os.path.islink(p):
+            lines.append(f"  {sub or '.'}/ -> symlink {os.readlink(p)}")
+        elif os.path.isdir(p):
+            lines.append(f"  {sub or '.'}/: {' '.join(sorted(os.listdir(p)))}")
+        else:
+            lines.append(f"  {sub or '.'}/: (missing)")
+    macros = os.path.join(layer_rootfs, 'etc/rpm/macros')
+    if os.path.exists(macros):
+        with open(macros) as f:
+            lines.append(f"  etc/rpm/macros: {f.read()!r}")
+
+    bb.warn('\n'.join(lines))
+
 def oci_install_layer_packages(d, layer_rootfs, layer_packages, layer_name):
     """
     Install packages to a layer rootfs using Yocto's package manager classes.
@@ -504,11 +581,14 @@ def oci_install_layer_packages(d, layer_rootfs, layer_packages, layer_name):
         pm.write_index()
         pm.update()
 
+        oci_debug_rpmdb(d, layer_rootfs, layer_name, "before install")
+
         # Install packages
         # Use attempt_only=True to allow unresolved deps (resolved in later layers)
         try:
             pm.install(packages, attempt_only=True)
         except Exception as e:
+            oci_debug_rpmdb(d, layer_rootfs, layer_name, "after failed install")
             bb.warn(f"OCI: Package installation had issues (may be resolved in later layers): {e}")
 
     elif pkg_type == 'ipk':
