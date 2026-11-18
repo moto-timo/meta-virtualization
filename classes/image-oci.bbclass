@@ -516,7 +516,7 @@ def oci_debug_rpmdb(d, layer_rootfs, layer_name, when):
         env['RPM_CONFIGDIR'] = rpm_configdir
         env['RPM_ETCCONFIGDIR'] = layer_rootfs
         cmd = [rpm, '--root', layer_rootfs]
-        for macro in ('%{_dbpath}', '%{_dbbackend}', '%{_usr}', '%{_var}',
+        for macro in ('%{_dbpath}', '%{_db_backend}', '%{_usr}', '%{_var}',
                       '%{_sharedstatedir}', '%{_rpmconfigdir}'):
             cmd += ['--eval', f'{macro}={macro}']
         try:
