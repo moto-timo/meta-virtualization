@@ -47,6 +47,17 @@ inherit image-oci
 inherit container-nonroot-user
 inherit container-volatile-fixup
 
+# AI-generated (Claude Code, Claude Opus 5.5).
+# nginx deletes /run and /var/log from its package and relies on
+# tmpfiles.d/populate-volatile at boot to create them, which never runs in
+# a container. Create them at rootfs time so the nginx-dirs layer and
+# NONROOT_OWNED_DIRS find them. :append keeps this after
+# rootfs_fixup_var_volatile, which provides the /var/log symlink target.
+ROOTFS_POSTPROCESS_COMMAND:append = " nginx_container_dirs"
+nginx_container_dirs () {
+    install -d -m 0755 ${IMAGE_ROOTFS}/run/nginx ${IMAGE_ROOTFS}${localstatedir}/log/nginx
+}
+
 IMAGE_FEATURES = ""
 IMAGE_LINGUAS = ""
 NO_RECOMMENDATIONS = "1"
