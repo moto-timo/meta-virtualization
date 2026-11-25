@@ -69,6 +69,8 @@ do_image_oci[depends] += "jq-native:do_populate_sysroot"
 # Package manager native tools for multi-layer mode with package installation
 OCI_PM_DEPENDS = "${@oci_get_pm_depends(d)}"
 do_image_oci[depends] += "${OCI_PM_DEPENDS}"
+# rpm installs layers as fake root (chown, chroot), so pseudo must track them
+PSEUDO_INCLUDE_PATHS .= ",${WORKDIR}/oci-layer-rootfs"
 
 def oci_pkg_type(d):
     """Resolve IMAGE_PKGTYPE with a single, documented default.
