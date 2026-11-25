@@ -502,14 +502,25 @@ def oci_install_layer_packages(d, layer_rootfs, layer_packages, layer_name):
 
         # Generate/update repo indexes
         pm.write_index()
-        pm.update()
 
-        # Install packages
-        # Use attempt_only=True to allow unresolved deps (resolved in later layers)
+        # Run dnf/rpm as the build user: the layer rootfs is not tracked by
+        # pseudo, so rpm's chown-to-root of every path it creates would fail.
+        saved_pseudo_disabled = os.environ.get('PSEUDO_DISABLED')
+        os.environ['PSEUDO_DISABLED'] = '1'
         try:
-            pm.install(packages, attempt_only=True)
-        except Exception as e:
-            bb.warn(f"OCI: Package installation had issues (may be resolved in later layers): {e}")
+            pm.update()
+
+            # Install packages
+            # Use attempt_only=True to allow unresolved deps (resolved in later layers)
+            try:
+                pm.install(packages, attempt_only=True)
+            except Exception as e:
+                bb.warn(f"OCI: Package installation had issues (may be resolved in later layers): {e}")
+        finally:
+            if saved_pseudo_disabled is None:
+                del os.environ['PSEUDO_DISABLED']
+            else:
+                os.environ['PSEUDO_DISABLED'] = saved_pseudo_disabled
 
     elif pkg_type == 'ipk':
         from oe.package_manager.ipk import OpkgPM
