@@ -47,6 +47,12 @@ inherit image-oci
 inherit container-nonroot-user
 inherit container-volatile-fixup
 
+# nginx creates these at boot via tmpfiles.d, which never runs in a container
+ROOTFS_POSTPROCESS_COMMAND:append = " nginx_container_dirs"
+nginx_container_dirs () {
+    install -d -m 0755 ${IMAGE_ROOTFS}/run/nginx ${IMAGE_ROOTFS}${localstatedir}/log/nginx
+}
+
 IMAGE_FEATURES = ""
 IMAGE_LINGUAS = ""
 NO_RECOMMENDATIONS = "1"
